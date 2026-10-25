@@ -1,6 +1,6 @@
-# Kartičky VŠCHT
+# Studium VŠCHT
 
-Opakovací kartičky ze studijních listů (ZS 2026/27). Je to PWA: instaluje se na plochu iPhonu a funguje offline. Pokrok se synchronizuje přes Google Sheet na tvém Drive (stejně jako Trénink deník).
+Plán semestru a opakovací kartičky ze studijních listů (ZS 2026/27) v jedné appce: **Dnes** (co je teď podle režimu, kartičky, úkoly týdne, listy k zopakování, nejbližší termíny), **Týden** (checklist po skupinách), **Kartičky**, **Předměty** (kalendář testů, podmínky zápočtu, materiály, odkazy, otázky), **Víc** (úkoly, tahák, sync, nastavení). Je to PWA: instaluje se na plochu iPhonu a funguje offline. Pokrok i odškrtání se synchronizují přes Google Sheet na tvém Drive (stejně jako Trénink deník).
 
 - **Plánování:** FSRS-4.5, cílová úspěšnost 90 %, strop 1 rok. Před testem se interval zkrátí, aby karta přišla nejpozději den předem.
 - **Odemykání:** karty se odemykají podle týdne výuky (`w` v `cards.json`). Doplňky se otevřou 3 týdny před zkouškou.
@@ -14,15 +14,16 @@ index.html, manifest.webmanifest, sw.js   PWA shell (offline cache – při změ
 css/app.css                               vzhled
 js/app.js                                 celá appka (FSRS, sekce, sync)
 cards.json                                kartičky – generuje _claude_pracovni/build_study.py ze studijních listů
+semestr.json                              plán semestru – generuje _claude_pracovni/semestr_export.py z dashboardu semestr.html
 apps-script/Code.gs                       backend nad Sheetem
 tools/make_icons.py                       generátor ikony (py tools/make_icons.py)
 ```
 
-Aktualizace kartiček z disku: `python3 _claude_pracovni/karticky_deploy.py` (zkopíruje `cards.json`, zvýší verzi service workeru, commit + push).
+Aktualizace dat z disku: `python3 _claude_pracovni/karticky_deploy.py` (vyexportuje a zkopíruje `cards.json` + `semestr.json`, zvýší verzi service workeru, commit + push).
 
 ## 1. Google Sheet + Apps Script (jednorázově, ~5 min)
 
-1. Na [sheets.new](https://sheets.new) založ prázdnou tabulku, pojmenuj ji třeba *Kartičky VŠCHT*.
+1. Na [sheets.new](https://sheets.new) založ prázdnou tabulku, pojmenuj ji třeba *Studium VŠCHT*.
 2. V tabulce otevři **Rozšíření → Apps Script**. Smaž obsah `Kód.gs`, vlož celý soubor `apps-script/Code.gs` a ulož (Ctrl+S).
 3. Nahoře vyber funkci **setup** a klikni na **Spustit**.
    - Google si řekne o oprávnění: **Zkontrolovat oprávnění** → účet → **Rozšířené → Přejít na … (nebezpečné)** → **Povolit**. Je to tvůj vlastní skript.

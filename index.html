@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Kartičky">
-<title>Kartičky VŠCHT</title>
+<meta name="apple-mobile-web-app-title" content="VŠCHT">
+<title>Studium VŠCHT</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -21,7 +21,7 @@
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="brand"><span class="stack" aria-hidden="true"><i></i><i></i><i></i></span>Kartičky</div>
+  <div class="brand"><span class="stack" aria-hidden="true"><i></i><i></i><i></i></span>Studium</div>
   <span class="chip" id="wkChip">týden –</span>
   <button class="chip" id="syncChip" type="button" title="Synchronizovat teď">načítám…</button>
 </div></header>
@@ -30,37 +30,93 @@
 
 <!-- ===== DNES ===== -->
 <section data-tab="dnes" class="col">
+  <div class="panel now" id="nowCard"></div>
+
   <div class="panel">
     <div class="ph"><h2 id="dTitle">Dnes</h2><span class="note" id="dEta"></span></div>
     <div class="big">
-      <div><b class="num" id="hDue">–</b><span>k opakování</span></div>
-      <div><b class="num" id="hNew">–</b><span>nové</span></div>
+      <div><b class="num" id="hDue">–</b><span>kartiček opakovat</span></div>
+      <div><b class="num" id="hNew">–</b><span>nových</span></div>
       <div><b class="num" id="hDone">0</b><span>hotovo</span></div>
     </div>
-    <div class="note" id="hNote">Načítám kartičky…</div>
-    <button class="primary" id="startAll" type="button" disabled>Začít</button>
+    <button class="primary" id="startAll" type="button" disabled>Začít kartičky</button>
+    <div class="note" id="hNote"></div>
   </div>
+
   <div class="panel" id="syncHint" hidden>
-    <div class="note">Pokrok je zatím jen v tomhle zařízení. Aby byl stejný v mobilu i v PC, propoj Google Sheet ve <b>Víc → Synchronizace</b>.</div>
+    <div class="note">Pokrok i odškrtání jsou zatím jen v tomhle zařízení. Aby byly stejné v mobilu i v PC, propoj Google Sheet ve <b>Víc → Synchronizace</b>.</div>
   </div>
+
   <div class="panel">
-    <div class="ph"><h3>Nejbližší testy</h3></div>
-    <div class="list" id="tests"></div>
+    <div class="ph"><h3>Tento týden</h3><button class="link" type="button" data-go="tyden">celý týden ›</button></div>
+    <div class="bar big4"><i id="wkBar"></i></div>
+    <div class="note" id="wkSum"></div>
+    <ul class="todo" id="dWeek"></ul>
   </div>
+
   <div class="panel">
-    <div class="ph"><h3>Balíčky</h3><span class="note"><span class="c-due">opakovat</span> · <span class="c-new">nové</span> · <span class="c-lock">zamčené</span></span></div>
-    <div class="list" id="decks"></div>
+    <div class="ph"><h3>Zopakuj listy</h3><span class="note" id="revSum"></span></div>
+    <ul class="todo" id="dRev"></ul>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h3>Nejbližší termíny</h3><button class="link" type="button" data-go="predmety">kalendář ›</button></div>
+    <div class="list" id="dEv"></div>
+  </div>
+
+  <details class="panel fold" id="schedBox">
+    <summary><h3>Rozvrh dne</h3></summary>
+    <div class="row" id="dayChips"></div>
+    <ol class="sched" id="sched"></ol>
+  </details>
+</section>
+
+<!-- ===== TÝDEN ===== -->
+<section data-tab="tyden" class="col" hidden>
+  <div class="panel">
+    <div class="wkbar"><button class="ghost" id="wkPrev" type="button" aria-label="Předchozí týden">‹</button><h2 id="wkTitle"></h2><button class="ghost" id="wkNext" type="button" aria-label="Další týden">›</button></div>
+    <div class="bar big4"><i id="wkBar2"></i></div>
+    <div class="note" id="wkProg"></div>
+  </div>
+  <div id="weekGroups" class="col"></div>
+</section>
+
+<!-- ===== KARTIČKY ===== -->
+<section data-tab="karticky" class="col" hidden>
+  <div class="seg" role="tablist" id="kSeg">
+    <button type="button" role="tab" data-k="opak" aria-selected="true">Opakovat</button>
+    <button type="button" role="tab" data-k="temata">Témata</button>
+    <button type="button" role="tab" data-k="stat">Statistiky</button>
+  </div>
+
+  <div data-k="opak" class="col">
+    <div class="panel" id="studyIdle">
+      <p class="note">Vyber, co chceš projít. „Vše na dnes“ bere nejdřív předmět s nejbližším testem.</p>
+      <div class="list" id="studyPick"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h3>Balíčky</h3><span class="note"><span class="c-due">opakovat</span> · <span class="c-new">nové</span> · <span class="c-lock">zamčené</span></span></div>
+      <div class="list" id="decks"></div>
+    </div>
+  </div>
+
+  <div data-k="temata" class="panel" hidden>
+    <div class="row" id="subjChips"></div>
+    <div id="topicList"></div>
+  </div>
+
+  <div data-k="stat" class="col" hidden>
+    <div class="panel"><div class="kpis" id="kpis"></div></div>
+    <div class="panel"><div class="ph"><h3>Kolik přijde v dalších 14 dnech</h3></div><div class="chart" id="fc"></div></div>
+    <div class="panel"><div class="ph"><h3>Posledních 28 dní</h3></div><div class="heat" id="heat"></div><div class="note" id="heatMsg"></div></div>
+    <div class="panel"><div class="ph"><h3>Předměty</h3></div><div class="tbl"><table id="subjTbl"></table></div></div>
+    <div class="panel"><div class="ph"><h3>Slabá témata</h3><span class="note">nejvíc „Znovu“</span></div><div class="list" id="weak"></div></div>
   </div>
 </section>
 
-<!-- ===== OPAKOVAT ===== -->
-<section data-tab="opak" hidden>
-  <div class="panel" id="studyIdle">
-    <h2>Opakování</h2>
-    <p class="note">Vyber, co chceš projít. „Vše na dnes“ bere nejdřív předmět s nejbližším testem.</p>
-    <div class="list" id="studyPick"></div>
-  </div>
-  <div class="study" id="studyBox" hidden>
+<!-- ===== OPAKOVÁNÍ (celá obrazovka) ===== -->
+<section data-tab="study" hidden>
+  <div class="study">
     <div class="stop">
       <button class="ghost" id="back" type="button">Konec</button>
       <div class="prog"><i id="prog"></i></div>
@@ -82,36 +138,32 @@
   </div>
 </section>
 
-<!-- ===== TÉMATA ===== -->
-<section data-tab="temata" hidden>
-  <div class="panel">
-    <div class="ph"><h2>Témata</h2><span class="note">seřazeno podle týdne výuky</span></div>
-    <div class="row" id="subjChips"></div>
-    <div id="topicList"></div>
-  </div>
-</section>
-
-<!-- ===== PŘEHLED ===== -->
-<section data-tab="prehled" class="col" hidden>
-  <div class="panel"><div class="kpis" id="kpis"></div></div>
-  <div class="panel"><div class="ph"><h3>Kolik přijde v dalších 14 dnech</h3><span class="note">opakování, bez nových</span></div><div class="chart" id="fc"></div></div>
-  <div class="panel"><div class="ph"><h3>Posledních 28 dní</h3></div><div class="heat" id="heat"></div><div class="note" id="heatMsg"></div></div>
-  <div class="panel"><div class="ph"><h3>Předměty</h3></div><div class="tbl"><table id="subjTbl"></table></div></div>
-  <div class="panel"><div class="ph"><h3>Slabá témata</h3><span class="note">nejvíc „Znovu“</span></div><div class="list" id="weak"></div></div>
+<!-- ===== PŘEDMĚTY ===== -->
+<section data-tab="predmety" class="col" hidden>
+  <div class="row chips-scroll" id="pChips"></div>
+  <div id="pBody" class="col"></div>
 </section>
 
 <!-- ===== VÍC ===== -->
 <section data-tab="vic" class="col" hidden>
+  <div class="panel">
+    <div class="ph"><h2>Úkoly</h2><span class="note" id="todoSum"></span></div>
+    <ul class="todo" id="todo"></ul>
+  </div>
+  <details class="panel fold">
+    <summary><h2>Tahák: jak se učit</h2></summary>
+    <div class="tahak" id="tahak"></div>
+  </details>
   <div class="panel set">
     <h2>Synchronizace</h2>
-    <p class="note">Stejný Google Sheet + Apps Script jako u deníku, jen vlastní tabulka. Návod je v README repozitáře (5 minut).</p>
+    <p class="note">Google Sheet + Apps Script (jako u deníku, vlastní tabulka). Návod je v README repozitáře, zabere 5 minut. Synchronizuje se pokrok v kartičkách i odškrtání.</p>
     <label class="f">URL webové aplikace (končí /exec)<input id="syUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
     <label class="f">Token<input id="syTok" type="text" autocomplete="off" spellcheck="false"></label>
     <div class="row"><button class="ghost" id="sySave" type="button">Uložit a otestovat</button><button class="ghost" id="syNow" type="button">Synchronizovat teď</button></div>
     <div class="note" id="syMsg"></div>
   </div>
   <div class="panel set">
-    <h2>Nastavení</h2>
+    <h2>Nastavení kartiček</h2>
     <div class="row"><label for="sNew">Nových kartiček za den</label><input type="number" id="sNew" min="0" max="200" step="5"></div>
     <div class="row"><label for="sRet">Cílová úspěšnost (víc = častější opakování)</label>
       <select id="sRet"><option value="0.85">85 %</option><option value="0.9">90 %</option><option value="0.93">93 %</option><option value="0.95">95 %</option></select></div>
@@ -132,8 +184,8 @@
   </div>
   <div class="panel">
     <h2>O aplikaci</h2>
-    <div class="note">Mezerník nebo klepnutí = ukázat odpověď · 1 Znovu · 2 Těžké · 3 Dobře · 4 Snadno · mezerník po otočení = Dobře · Z = vrátit · Esc = konec.</div>
-    <div class="note">Na iPhonu: Safari → Sdílet → Přidat na plochu. Pak funguje i bez signálu; pokrok se pošle, až bude síť.</div>
+    <div class="note">Kartičky: mezerník nebo klepnutí = ukázat odpověď · 1 Znovu · 2 Těžké · 3 Dobře · 4 Snadno · mezerník po otočení = Dobře · Z = vrátit · Esc = konec.</div>
+    <div class="note">Na iPhonu: Safari → Sdílet → Přidat na plochu. Pak funguje i bez signálu; změny se pošlou, až bude síť.</div>
     <div class="note" id="genMsg"></div>
   </div>
 </section>
@@ -141,12 +193,12 @@
 
 <nav class="dock" id="dock" aria-label="Sekce"><div class="wrap">
   <button data-go="dnes" type="button" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Dnes</button>
-  <button data-go="opak" type="button"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h4"/></svg><span>Opakovat<span class="badge" id="badge" hidden></span></span></button>
-  <button data-go="temata" type="button"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Témata</button>
-  <button data-go="prehled" type="button"><svg viewBox="0 0 24 24"><path d="M4 19h16M7 16v-5M12 16V7M17 16v-8"/></svg>Přehled</button>
+  <button data-go="tyden" type="button"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Týden</button>
+  <button data-go="karticky" type="button"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h4"/></svg><span>Kartičky<span class="badge" id="badge" hidden></span></span></button>
+  <button data-go="predmety" type="button"><svg viewBox="0 0 24 24"><path d="M5 4h10a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4z"/><path d="M5 16a4 4 0 0 1 4-4h10"/></svg>Předměty</button>
   <button data-go="vic" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>Víc</button>
 </div></nav>
 <div class="grades" id="gradesBar" hidden><div class="wrap"><div class="in" id="grades"></div></div></div>
-<noscript>Kartičky potřebují JavaScript.</noscript>
+<noscript>Aplikace potřebuje JavaScript.</noscript>
 </body>
 </html>

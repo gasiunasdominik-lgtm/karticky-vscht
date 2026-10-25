@@ -1,5 +1,5 @@
-// Kartičky VŠCHT – opakování ze studijních listů (FSRS), offline PWA, sync s Google Sheetem přes Apps Script.
-// Data: localStorage (stav karet, log, nastavení) + fronta změn; cards.json generuje build_study.py ze studijních listů.
+// Studium VŠCHT – plán semestru + opakovací kartičky (FSRS). Offline PWA, sync s Google Sheetem přes Apps Script.
+// Data: cards.json (build_study.py) a semestr.json (semestr_export.py) ze složky 3_VŠCHT; stav v localStorage + fronta změn.
 
 // ---------- FSRS-4.5 (výchozí parametry)
 const W = [0.4872, 1.4003, 3.7145, 13.8206, 5.1618, 1.2298, 0.8975, 0.031, 1.6474, 0.1367, 1.0461, 2.1072, 0.0793, 0.3246, 1.587, 0.2272, 2.8755];
@@ -25,16 +25,23 @@ const isoToDay = s => Math.floor(Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s
 const dayIso = n => new Date(n * DAY).toISOString().slice(0, 10);
 const DN = ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'];
 const fmtD = n => { const d = new Date(n * DAY); return d.getUTCDate() + '. ' + (d.getUTCMonth() + 1) + '.'; };
+const fmtDW = n => DN[new Date(n * DAY).getUTCDay()] + ' ' + fmtD(n);
+const inDays = n => n === 0 ? 'dnes' : n === 1 ? 'zítra' : `za ${n} dní`;
 const fmtIvl = n => n < 1 ? 'dnes' : n === 1 ? '1 d' : n < 30 ? n + ' d' : n < 365 ? (n / 30).toFixed(n < 60 ? 1 : 0) + ' měs' : '1 rok';
+const mins = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 
 const SUBJN = { MAT: 'Matematika', OAC: 'OAC přednášky', OACC: 'OAC cvičení', CBV: 'CBV', CHT: 'CHT', TOX: 'TOX', PCP: 'PCP' };
 const DECKN = { 1: 'Teorie (CHT, TOX, OAC)', 2: 'MATLAB a zkratky', 3: 'CBV vzorce a postupy', 4: 'Ostatní (MAT, OACC, PCP)', 9: 'Doplňky (před zkouškou)' };
 const TYPN = { J: '', F: 'Filozofie', V: 'Vzorec', P: 'Postup', K: 'Příkaz', D: 'Doplněk' };
 const SUBJS = Object.keys(SUBJN);
 const EXAM = { MAT: '2027-01-11', OAC: '2027-01-11', OACC: '2027-01-11', CHT: '2027-01-13', TOX: '2027-01-13', CBV: '2026-12-15', PCP: '2026-12-10' };
+// odškrtnuté položky přenesené ze starého dashboardu (artefakt Semestr ZS 26/27, 25. 10. 2026)
+const SEED_DONE = ['chm', 'cht-mail', 'g-cbv1', 'g-cbv2', 'g-cbv3', 'g-mat1', 'g-oac1', 'g-oac3', 'mat-mail', 'noc-vedy', 'pcp-mail', 'w-mat',
+  'r-2026-09-20MAT-T01dohnat: celý list', 'r-2026-09-21MAT-T01vybavování (sekce 7)', 'r-2026-09-21MAT-T02dohnat: celý list', 'r-2026-09-21MAT-T03nové: celý list',
+  'r-2026-09-22MAT-T02vybavování (sekce 7)', 'r-2026-09-22MAT-T03vybavování (sekce 7)'];
 
-let DATA = null, CARDS = [], BYID = {}, W1 = 0, TOPICS = [];
-let srs = {}, log = {};
+let DATA = null, SEM = null, CARDS = [], BYID = {}, W1 = 0, TOPICS = [];
+let srs = {}, log = {}, done = {};
 let set = { newPerDay: 20, ret: 0.9, ahead: false, dopl: false, test: true, ts: 0 };
 const $ = id => document.getElementById(id);
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -43,13 +50,16 @@ const ls = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* plné úložiště */ } },
 };
 function toast(t) { const x = el('div', 'toast', t); document.body.appendChild(x); setTimeout(() => x.remove(), 2200); }
+const tag = s => el('span', 'tag ' + s, s);
 
-// ---------- úložiště + fronta změn (klíče: srs_<PŘEDMĚT>, meta)
+// ---------- úložiště + fronta změn (klíče: srs_<PŘEDMĚT>, meta, done)
 const shardOf = id => (BYID[id] || {}).s || 'X';
 let dirty = new Set(ls.get('k_dirty', []));
-function persist() { ls.set('k_srs', srs); ls.set('k_log', log); ls.set('k_set', set); ls.set('k_dirty', [...dirty]); }
+function persist() { ls.set('k_srs', srs); ls.set('k_log', log); ls.set('k_set', set); ls.set('k_done', done); ls.set('k_dirty', [...dirty]); }
 function markDirty(id) { dirty.add('srs_' + shardOf(id)); dirty.add('meta'); persist(); schedulePush(); }
 function mergeRec(a, b) { if (!a) return b; if (!b) return a; return (b[3] > a[3] || (b[3] === a[3] && b[0] > a[0])) ? b : a; }
+const isDone = id => !!(done[id] && done[id][0]);
+function setDone(id, v) { done[id] = [v, Date.now()]; dirty.add('done'); persist(); schedulePush(); }
 
 // ---------- sync s Google Sheetem (Apps Script web app)
 const syncCfg = () => { const c = ls.get('k_sync', null); return c && c.url && c.token ? c : null; };
@@ -57,7 +67,7 @@ let syncing = false, pushT = null, lastPull = 0;
 function syncLabel(t) { $('syncChip').textContent = t; }
 function syncState() {
   const c = syncCfg();
-  $('syncHint').hidden = !!c || ls.get('k_hint_off', false);
+  $('syncHint').hidden = !!c;
   if (!c) return syncLabel('jen v zařízení');
   if (!navigator.onLine) return syncLabel(dirty.size ? `offline · ${dirty.size} čeká` : 'offline');
   syncLabel(dirty.size ? `${dirty.size} čeká na odeslání` : '☁️ synchronizováno');
@@ -78,6 +88,7 @@ async function api(cfg, method, payload) {
 }
 function payloadFor(key) {
   if (key === 'meta') return JSON.stringify({ log, set });
+  if (key === 'done') return JSON.stringify(done);
   const sh = key.slice(4), part = {};
   for (const [id, v] of Object.entries(srs)) if (shardOf(id) === sh) part[id] = v;
   return JSON.stringify(part);
@@ -90,6 +101,8 @@ async function pull(cfg) {
     if (key === 'meta') {
       for (const [k, l] of Object.entries(v.log || {})) if (!log[k] || l[0] > log[k][0]) { log[k] = l; changed = true; }
       if (v.set && (v.set.ts || 0) > (set.ts || 0)) { set = { ...set, ...v.set }; changed = true; }
+    } else if (key === 'done') {
+      for (const [id, r] of Object.entries(v)) if (!done[id] || r[1] > done[id][1]) { done[id] = r; changed = true; }
     } else if (key.startsWith('srs_')) {
       for (const [id, r] of Object.entries(v)) { const m = mergeRec(srs[id], r); if (m !== srs[id]) { srs[id] = m; changed = true; } }
     }
@@ -124,7 +137,7 @@ async function syncNow(manual) {
 }
 function schedulePush() { syncState(); clearTimeout(pushT); pushT = setTimeout(() => syncNow(false), 4000); }
 
-// ---------- výpočty
+// ---------- výpočty kartiček
 const today = () => dayNum();
 const weekNow = () => Math.floor((today() - W1) / 7) + 1;
 function nextTest(s, from) { let best = null; for (const t of DATA.tests) { if (t.s !== s) continue; const d = isoToDay(t.d); if (d >= from && (!best || d < best.day)) best = { day: d, n: t.n }; } return best; }
@@ -161,62 +174,155 @@ function topicStats(t) {
   return { n, due, fresh, lock, known, lap, reps };
 }
 
+// ---------- plán semestru
+const semWeek = () => Math.min(22, Math.max(1, weekNow()));
+// skupina Anki je z doby před vlastními kartičkami – odemykání teď dělá appka sama
+const weekGroups = w => (w ? w.groups : []).filter(g => !/Anki/.test(g.h));
+const GPRIO = ['📝', '✍️', '📖', '🧭', '🔁'];
+const gRank = g => { const i = GPRIO.findIndex(p => g.h.startsWith(p)); return i < 0 ? 9 : i; };
+function todoItem(id, text, meta, onChange, tg) {
+  const li = el('li'); if (isDone(id)) li.className = 'done';
+  const lb = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.checked = isDone(id);
+  cb.onchange = () => { setDone(id, cb.checked); li.classList.toggle('done', cb.checked); if (onChange) onChange(); };
+  const tx = el('span'), t = el('span', 't');
+  if (tg) t.appendChild(tag(tg));
+  t.append(text); tx.appendChild(t); if (meta) tx.appendChild(el('span', 'm', meta));
+  lb.append(cb, tx); li.appendChild(lb); return li;
+}
+function revDue() {
+  const t = dayIso(today());
+  return SEM.plan.filter(p => p.date <= t && !isDone('r-' + p.date + p.id + p.typ));
+}
+function inCamp() { const td = today(); return td >= isoToDay(SEM.camp[0]) && td <= isoToDay(SEM.camp[1]); }
+
 // ---------- sekce
-const TABS = ['dnes', 'opak', 'temata', 'prehled', 'vic'];
-let TAB = 'dnes';
+const TABS = ['dnes', 'tyden', 'karticky', 'predmety', 'vic'];
+let TAB = 'dnes', KSEG = ls.get('k_seg', 'opak');
 function go(tab) {
   TAB = tab;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
   document.querySelectorAll('nav.dock button').forEach(b => b.toggleAttribute('aria-current', false));
   const b = document.querySelector(`nav.dock [data-go="${tab}"]`); if (b) b.setAttribute('aria-current', 'page');
-  if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
+  if (TABS.includes(tab) && location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
   refresh(); window.scrollTo({ top: 0 });
 }
 function refresh() {
-  if (!DATA) return;
+  if (!DATA || !SEM) return;
   renderHeader();
   if (TAB === 'dnes') renderDnes();
-  if (TAB === 'opak' && !S) renderPick();
-  if (TAB === 'temata') renderTopics();
-  if (TAB === 'prehled') renderPrehled();
+  if (TAB === 'tyden') renderTyden();
+  if (TAB === 'karticky') renderKarticky();
+  if (TAB === 'predmety') renderPredmety();
   if (TAB === 'vic') renderVic();
 }
 function renderHeader() {
-  const wk = weekNow(); $('wkChip').textContent = wk >= 1 && wk <= 14 ? `${wk}. týden` : wk > 14 ? 'zkouškové' : 'před semestrem';
+  const wk = weekNow(); $('wkChip').textContent = inCamp() ? 'soustředění' : wk >= 1 && wk <= 14 ? `${wk}. týden` : wk > 14 ? 'zkouškové' : 'před semestrem';
   const { due, fresh } = pools(); const n = due.length + Math.min(newLeft(), fresh.length);
   $('badge').hidden = !n; $('badge').textContent = n;
   syncState();
 }
+
+// ----- DNES
+function renderNow() {
+  const box = $('nowCard'); box.textContent = '';
+  const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
+  const put = (small, strong, how, after) => { box.append(el('small', null, small), el('strong', null, strong)); if (how) box.appendChild(el('span', 'how', how)); if (after) box.appendChild(el('span', 'after', after)); };
+  if (inCamp()) return put('Soustředění', 'Kartičky a audio', 'Nové listy neplánuj. Opakuj kartičky na cestách, nové jen polovinu.');
+  if (m >= 21 * 60 + 20 || m < 6 * 60 + 20) return put('Teď', 'Spánek (21:20–6:20)', 'Ráno se sem podívej, co je na řadě.');
+  const bl = SEM.rezim[((now.getDay() + 6) % 7) + 1] || [];
+  const cur = bl.find(b => mins(b.a) <= m && m < mins(b.b)), nxt = bl.find(b => mins(b.a) > m);
+  const show = cur || nxt;
+  if (!show) return put('Teď', 'Volno');
+  put(`${cur ? 'Teď' : 'Za chvíli'} · ${show.a}–${show.b}`, show.co, show.jak, cur && nxt ? `Potom ${nxt.a}: ${nxt.co}` : '');
+}
+let selDay = ((new Date().getDay() + 6) % 7) + 1;
+function renderSched() {
+  const realDay = ((new Date().getDay() + 6) % 7) + 1, DNY = ['', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+  const ch = $('dayChips'); ch.textContent = '';
+  for (let i = 1; i <= 7; i++) { const b = el('button', 'chip', DNY[i] + (i === realDay ? ' · dnes' : '')); b.type = 'button'; b.setAttribute('aria-pressed', String(i === selDay)); b.onclick = () => { selDay = i; renderSched(); }; ch.appendChild(b); }
+  const now = new Date(), m = now.getHours() * 60 + now.getMinutes(), ol = $('sched'); ol.textContent = '';
+  for (const b of SEM.rezim[selDay] || []) {
+    const li = el('li', b.t); if (selDay === realDay && mins(b.a) <= m && m < mins(b.b)) li.classList.add('cur'); else if (selDay === realDay && mins(b.b) <= m) li.classList.add('gone');
+    li.append(el('span', 'tm', `${b.a}–${b.b}`), el('span', 'co', b.co)); if (b.jak) li.appendChild(el('span', 'jak', b.jak)); ol.appendChild(li);
+  }
+}
 function renderDnes() {
-  const td = today(); const { due, fresh } = pools(); const nNew = Math.min(newLeft(), fresh.length);
-  const d = new Date(td * DAY); $('dTitle').textContent = `Dnes · ${DN[d.getUTCDay()]} ${fmtD(td)}`;
+  const td = today();
+  renderNow();
+  $('dTitle').textContent = `Dnes · ${fmtDW(td)}`;
+  const { due, fresh } = pools(); const nNew = Math.min(newLeft(), fresh.length);
   $('hDue').textContent = due.length; $('hNew').textContent = nNew; $('hDone').textContent = (log[dayIso(td)] || [0])[0];
   $('dEta').textContent = due.length + nNew ? `asi ${Math.max(1, Math.round((due.length * 8 + nNew * 20) / 60))} min` : '';
+  $('startAll').disabled = due.length + nNew === 0; $('startAll').textContent = due.length + nNew ? `Začít kartičky (${due.length + nNew})` : 'Kartičky na dnes hotové';
   const backlog = fresh.length - nNew;
-  $('hNote').textContent = due.length + nNew === 0 ? (backlog ? 'Na dnes hotovo. Další nové přibudou zítra.' : 'Na dnes hotovo.')
-    : backlog > 0 ? `Odemčených nových čeká ještě ${backlog}. Když máš čas, zvyš počet nových za den ve Víc.` : 'Všechno odemčené máš rozjeté.';
-  $('startAll').disabled = due.length + nNew === 0; $('startAll').textContent = due.length + nNew ? `Začít (${due.length + nNew})` : 'Hotovo';
-  const tb = $('tests'); tb.textContent = '';
-  const up = DATA.tests.map(t => ({ ...t, day: isoToDay(t.d) })).filter(t => t.day >= td).slice(0, 5);
-  if (!up.length) tb.appendChild(el('div', 'note', 'Žádný test v kalendáři.'));
-  for (const t of up) {
-    const r = el('div', 'li'), nm = el('span', 'nm'), dd = t.day - td;
-    const dot = el('span', 'dot'); dot.style.background = `var(--c-${t.s})`; nm.append(dot, `${SUBJN[t.s]} – ${t.n}`);
-    nm.appendChild(el('small', null, fmtD(t.day) + (dd === 0 ? ' · dnes' : dd === 1 ? ' · zítra' : ` · za ${dd} dní`)));
-    const b = el('button', 'ghost', 'Procvičit'); b.type = 'button';
-    b.onclick = () => startSession(c => c.s === t.s && c.d !== '9' && (srs[c.id] || unlocked(c)), true, `${SUBJN[t.s]} – před testem`);
-    r.append(nm, b); tb.appendChild(r);
+  $('hNote').textContent = backlog > 0 ? `Odemčených nových čeká ještě ${backlog} – víc nových za den nastavíš ve Víc.` : '';
+  // týden
+  const w = SEM.tydny.find(x => x.n === semWeek()); const gs = weekGroups(w);
+  let all = 0, ok = 0; const open = [];
+  for (const g of gs) for (const it of g.items) { all++; if (isDone(it[0])) ok++; else open.push({ g, it }); }
+  const dm = fmtD(td).replace(/\s/g, ' ');
+  open.sort((a, b) => (b.it[1].includes(dm) - a.it[1].includes(dm)) || gRank(a.g) - gRank(b.g));
+  $('wkBar').style.width = (all ? ok / all * 100 : 0) + '%';
+  $('wkSum').textContent = all ? `${ok} z ${all} hotovo${open.length > 6 ? ` · ukazuju 6 nejdůležitějších z ${open.length}` : ''}` : 'Tento týden nic naplánováno.';
+  const ul = $('dWeek'); ul.textContent = '';
+  for (const { g, it } of open.slice(0, 6)) ul.appendChild(todoItem(it[0], it[1], g.h.replace(/^\S+\s/, '') + (it[2] ? ' · ' + it[2] : ''), () => setTimeout(renderDnes, 350)));
+  if (all && !open.length) ul.appendChild(el('li', 'empty', 'Všechno z tohoto týdne je hotové.'));
+  // opakování listů
+  // jen poslední 3 dny – starší zpoždění by seznam zahltilo (kartičky je stejně pokrývají)
+  const rAll = revDue(), t = dayIso(td), cut = dayIso(td - 3);
+  const rd = rAll.filter(p => p.date >= cut), old = rAll.filter(p => p.date < cut);
+  $('revSum').textContent = rd.length ? `${rd.length} na dnes` : '';
+  const ru = $('dRev'); ru.textContent = '';
+  for (const p of rd.slice(0, 6)) ru.appendChild(todoItem('r-' + p.date + p.id + p.typ, `${p.id} ${p.tema}`, p.typ + (p.date < t ? ` · od ${+p.date.slice(8, 10)}. ${+p.date.slice(5, 7)}.` : ''), () => setTimeout(renderDnes, 350), p.subj));
+  if (!rd.length) { const nx = SEM.plan.find(p => p.date > t); ru.appendChild(el('li', 'empty', nx ? `Dnes nic. Další ${+nx.date.slice(8, 10)}. ${+nx.date.slice(5, 7)}.: ${nx.id}` : 'Dnes nic.')); }
+  else if (rd.length > 6) ru.appendChild(el('li', 'empty', `+ ${rd.length - 6} dalších`));
+  if (old.length) {
+    const li = el('li', 'empty'), b = el('button', 'link', `Odškrtnout ${old.length} starších (zpoždění z minulých dní)`); b.type = 'button';
+    b.onclick = () => { const ts = Date.now(); for (const p of old) done['r-' + p.date + p.id + p.typ] = [true, ts]; dirty.add('done'); persist(); schedulePush(); renderDnes(); toast(`Odškrtnuto ${old.length} položek`); };
+    li.appendChild(b); ru.appendChild(li);
   }
-  const box = $('decks'); box.textContent = '';
-  for (const dk of Object.keys(DECKN)) {
-    const cs = CARDS.filter(c => c.d === dk); let du = 0, nw = 0, lock = 0, known = 0;
-    for (const c of cs) { const r = srs[c.id]; if (r) { if (r[5] <= td) du++; if (r[1] >= 21) known++; } else if (unlocked(c)) nw++; else lock++; }
-    const b = el('button', 'li'); b.type = 'button'; const nm = el('span', 'nm', DECKN[dk]);
-    nm.appendChild(el('small', null, `${cs.length} kartiček · ${known} pevně v paměti`));
-    const bar = el('div', 'bar'); const bi = el('i'); bi.style.width = (cs.length ? known / cs.length * 100 : 0) + '%'; bar.appendChild(bi); nm.appendChild(bar);
-    const ct = el('span', 'counts'); ct.append(el('span', 'c-due', du), el('span', 'c-new', Math.min(nw, newLeft())), el('span', 'c-lock', lock));
-    b.append(nm, ct); b.onclick = () => startSession(c => c.d === dk, false, DECKN[dk]); box.appendChild(b);
+  // termíny
+  const evb = $('dEv'); evb.textContent = '';
+  for (const e of SEM.ev.filter(e => isoToDay(e[0]) >= td).slice(0, 4)) {
+    const r = el('div', 'li'), nm = el('span', 'nm'), d = isoToDay(e[0]) - td;
+    nm.append(tag(e[1]), e[2]); nm.appendChild(el('small', null, `${fmtDW(isoToDay(e[0]))} · ${inDays(d)}`));
+    r.append(nm, el('span', 'num note', d <= 7 ? `${d} d` : '')); evb.appendChild(r);
   }
+  if ($('schedBox').open) renderSched();
+}
+
+// ----- TÝDEN
+let wkSel = null;
+const openG = new Set(ls.get('k_openG', []));
+function renderTyden() {
+  if (wkSel == null) wkSel = semWeek();
+  const w = SEM.tydny.find(x => x.n === wkSel); const box = $('weekGroups'); box.textContent = '';
+  if (!w) { $('wkTitle').textContent = 'mimo semestr'; return; }
+  const od = isoToDay(w.od), dd = isoToDay(w.do);
+  $('wkTitle').textContent = `${w.n > 14 ? 'zkouškové · ' : ''}${w.n}. týden · ${fmtD(od)}–${fmtD(dd)}${w.camp ? ' · soustředění' : ''}${w.n === semWeek() ? ' · teď' : ''}`;
+  let all = 0, ok = 0;
+  for (const g of weekGroups(w)) {
+    const okG = g.items.filter(it => isDone(it[0])).length; all += g.items.length; ok += okG;
+    const d = el('details', 'grp'); const key = w.n + g.h;
+    d.open = openG.has(key) || (okG < g.items.length && gRank(g) <= 2);
+    d.addEventListener('toggle', () => { d.open ? openG.add(key) : openG.delete(key); ls.set('k_openG', [...openG]); });
+    const sm = el('summary'); sm.append(el('b', null, g.h), el('span', 'cnt' + (okG === g.items.length ? ' full' : ''), `${okG}/${g.items.length}`)); if (g.kdy) sm.appendChild(el('small', null, g.kdy));
+    const ul = el('ul', 'todo');
+    for (const [id, t, m] of g.items) ul.appendChild(todoItem(id, t, m, renderTydenCounts));
+    d.append(sm, ul); box.appendChild(d);
+  }
+  $('wkBar2').style.width = (all ? ok / all * 100 : 0) + '%';
+  $('wkProg').textContent = `Hotovo ${ok} z ${all}`;
+}
+function renderTydenCounts() { const sY = window.scrollY; renderTyden(); window.scrollTo({ top: sY }); }
+
+// ----- KARTIČKY
+function renderKarticky() {
+  document.querySelectorAll('#kSeg button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.k === KSEG)));
+  document.querySelectorAll('section[data-tab="karticky"] > [data-k]').forEach(p => p.hidden = p.dataset.k !== KSEG);
+  if (KSEG === 'opak') { renderPick(); renderDecks(); }
+  if (KSEG === 'temata') renderTopics();
+  if (KSEG === 'stat') renderStats();
 }
 function renderPick() {
   const box = $('studyPick'); box.textContent = '';
@@ -228,6 +334,18 @@ function renderPick() {
     add(SUBJN[s], `${p.due.length} opakování + ${Math.min(newLeft(), p.fresh.length)} nových`, () => startSession(c => c.s === s, false, SUBJN[s]));
   }
   add('Jen filozofie témat', 'odemčené karty typu Filozofie, procvičení bez vlivu na plán', () => startSession(c => c.y === 'F' && (srs[c.id] || unlocked(c)), true, 'Filozofie'));
+}
+function renderDecks() {
+  const td = today(), box = $('decks'); box.textContent = '';
+  for (const dk of Object.keys(DECKN)) {
+    const cs = CARDS.filter(c => c.d === dk); let du = 0, nw = 0, lock = 0, known = 0;
+    for (const c of cs) { const r = srs[c.id]; if (r) { if (r[5] <= td) du++; if (r[1] >= 21) known++; } else if (unlocked(c)) nw++; else lock++; }
+    const b = el('button', 'li'); b.type = 'button'; const nm = el('span', 'nm', DECKN[dk]);
+    nm.appendChild(el('small', null, `${cs.length} kartiček · ${known} pevně v paměti`));
+    const bar = el('div', 'bar'); const bi = el('i'); bi.style.width = (cs.length ? known / cs.length * 100 : 0) + '%'; bar.appendChild(bi); nm.appendChild(bar);
+    const ct = el('span', 'counts'); ct.append(el('span', 'c-due', du), el('span', 'c-new', Math.min(nw, newLeft())), el('span', 'c-lock', lock));
+    b.append(nm, ct); b.onclick = () => startSession(c => c.d === dk, false, DECKN[dk]); box.appendChild(b);
+  }
 }
 let subjF = ls.get('k_subj', 'CHT');
 function renderTopics() {
@@ -253,7 +371,7 @@ function renderTopics() {
     box.appendChild(d);
   }
 }
-function renderPrehled() {
+function renderStats() {
   const td = today();
   let tot = 0, ag = 0, days = 0; for (let i = 0; i < 28; i++) { const L = log[dayIso(td - i)]; if (L && L[0]) { tot += L[0]; ag += L[1]; days++; } }
   let streak = 0; for (let i = 0; i < 400; i++) { const L = log[dayIso(td - i)]; if (L && L[0]) streak++; else if (i === 0) continue; else break; }
@@ -289,16 +407,81 @@ function renderPrehled() {
     const b = el('button', 'ghost', 'Procvičit'); b.type = 'button'; b.onclick = () => startSession(c => c.t === t.t && c.d !== '9', true, t.t); r.append(nm, b); wb.appendChild(r);
   }
 }
+
+// ----- PŘEDMĚTY
+let pSel = ls.get('k_psel', 'Vše');
+function evTimeline(filter) {
+  const td = today(), wk = weekNow(), box = el('div', 'tl'), groups = new Map();
+  for (const e of SEM.ev.filter(filter)) { const k = Math.min(Math.floor((isoToDay(e[0]) - W1) / 7) + 1, 15); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); }
+  for (const k of [...groups.keys()].sort((a, b) => a - b)) {
+    const ws = W1 + (k - 1) * 7, row = el('div', 'tlw');
+    if (k < 15 && ws + 7 <= td) row.classList.add('past'); if (k === wk) row.classList.add('cur'); if (k === 6 || k === 7) row.classList.add('camp');
+    const wkl = el('div', 'wk'); if (k >= 15) wkl.appendChild(el('b', null, 'zk.')); else { wkl.appendChild(el('b', null, k + '.')); wkl.append(fmtD(ws)); }
+    const evs = el('div');
+    for (const e of groups.get(k)) {
+      const x = el('div', 'ev'), t = el('span', 't'); t.append(tag(e[1]), e[2]);
+      if (e[4] === 'est') t.appendChild(el('span', 'flag', 'odhad dne')); if (e[4] === 'hit') t.appendChild(el('span', 'flag hit', 'koliduje'));
+      x.append(t, el('span', 'd', fmtDW(isoToDay(e[0])) + (e[3] ? ' · ' + e[3] : ''))); evs.appendChild(x);
+    }
+    row.append(wkl, evs); box.appendChild(row);
+  }
+  return box;
+}
+function panel(title, ...kids) { const p = el('div', 'panel'); if (title) { const ph = el('div', 'ph'); ph.appendChild(el('h3', null, title)); p.appendChild(ph); } p.append(...kids); return p; }
+function renderPredmety() {
+  const ch = $('pChips'); ch.textContent = '';
+  for (const s of ['Vše', ...SUBJS]) { const b = el('button', 'chip', s === 'Vše' ? 'Kalendář' : s); b.type = 'button'; b.setAttribute('aria-pressed', String(s === pSel)); b.onclick = () => { pSel = s; ls.set('k_psel', s); renderPredmety(); }; ch.appendChild(b); }
+  const body = $('pBody'); body.textContent = '';
+  if (pSel === 'Vše') {
+    body.appendChild(panel('Všechny testy a termíny', evTimeline(() => true)));
+    const qs = el('ol', 'qs'); for (const [k, q] of SEM.qs) { const li = el('li'); li.append(tag(k), q); qs.appendChild(li); }
+    body.appendChild(panel('Otevřené otázky pro vyučující', qs));
+    const ln = el('div', 'links'); for (const [k, t, u] of SEM.links) { const a = el('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.append(tag(k), t); ln.appendChild(a); }
+    body.appendChild(panel('Rychlé odkazy', ln));
+    return;
+  }
+  const s = pSel, sj = SEM.subj.find(x => x[0] === s);
+  if (sj) { const p = el('div', 'panel req'); p.append(el('h2', null, sj[1]), el('p', null, sj[2]), el('code', null, sj[3])); body.appendChild(p); }
+  const td = today(), up = SEM.ev.filter(e => e[1] === s);
+  body.appendChild(panel('Testy a termíny', up.length ? evTimeline(e => e[1] === s) : el('div', 'note', 'Žádné termíny.')));
+  // kartičky předmětu
+  const p = pools(c => c.s === s), cs = CARDS.filter(c => c.s === s), kn = cs.filter(c => srs[c.id] && srs[c.id][1] >= 21).length;
+  const kp = el('div', 'col'); const bar = el('div', 'bar big4'); const bi = el('i'); bi.style.width = (cs.length ? kn / cs.length * 100 : 0) + '%'; bar.appendChild(bi);
+  const row = el('div', 'row'); const b1 = el('button', 'ghost', `Opakovat (${p.due.length + Math.min(newLeft(), p.fresh.length)})`); b1.type = 'button'; b1.disabled = !(p.due.length || p.fresh.length); b1.onclick = () => startSession(c => c.s === s, false, SUBJN[s]);
+  const b2 = el('button', 'ghost', 'Témata'); b2.type = 'button'; b2.onclick = () => { subjF = s; ls.set('k_subj', s); KSEG = 'temata'; ls.set('k_seg', KSEG); go('karticky'); };
+  row.append(b1, b2); kp.append(el('div', 'note', `${cs.length} kartiček · ${kn} pevně v paměti · ${p.due.length} k opakování`), bar, row);
+  body.appendChild(panel('Kartičky', kp));
+  const gets = SEM.get.filter(g => g[1] === s);
+  if (gets.length) {
+    const ul = el('ul', 'todo');
+    for (const [id, , t, u, typ] of gets) {
+      const li = todoItem(id, t, typ === 'dl' ? ' ' : 'čekám na zveřejnění');
+      if (typ === 'dl' && u) { const a = el('a', null, 'otevřít ↗'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; li.querySelector('.m').appendChild(a); }
+      ul.appendChild(li);
+    }
+    body.appendChild(panel('Stáhnout a hlídat', ul));
+  }
+  const ln = SEM.links.filter(l => l[0] === s);
+  if (ln.length) { const box = el('div', 'links'); for (const [, t, u] of ln) { const a = el('a', null, t); a.href = u; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a); } body.appendChild(panel('Odkazy', box)); }
+  const qs = SEM.qs.filter(q => q[0] === s);
+  if (qs.length) { const ol = el('ol', 'qs'); for (const [, q] of qs) ol.appendChild(el('li', null, q)); body.appendChild(panel('Otázky pro vyučující', ol)); }
+}
+
+// ----- VÍC
 function renderVic() {
+  const ul = $('todo'); ul.textContent = '';
+  for (const [id, t, m] of SEM.todo) ul.appendChild(todoItem(id, t, m, () => { $('todoSum').textContent = `${SEM.todo.filter(x => isDone(x[0])).length} z ${SEM.todo.length}`; }));
+  $('todoSum').textContent = `${SEM.todo.filter(x => isDone(x[0])).length} z ${SEM.todo.length}`;
+  if (!$('tahak').childElementCount) $('tahak').innerHTML = SEM.tahak;   // vlastní obsah z dashboardu (semestr.html)
   $('sNew').value = set.newPerDay; $('sRet').value = String(set.ret); $('sAhead').checked = set.ahead; $('sDopl').checked = set.dopl; $('sTest').checked = set.test;
   const c = ls.get('k_sync', {}) || {};
   if (document.activeElement !== $('syUrl')) $('syUrl').value = c.url || '';
   if (document.activeElement !== $('syTok')) $('syTok').value = c.token || '';
   const kt = $('kTopic'); if (!kt.options.length) for (const t of TOPICS) { const o = el('option', null, `${t.t} ${t.tn}`); o.value = t.t; kt.appendChild(o); }
-  $('genMsg').textContent = `${CARDS.length} kartiček ze studijních listů, vygenerováno ${DATA.gen}.`;
+  $('genMsg').textContent = `${CARDS.length} kartiček (${DATA.gen}) a plán semestru (${SEM.gen}) ze složky 3_VŠCHT.`;
 }
 
-// ---------- opakování
+// ---------- opakování kartiček
 let S = null;
 function startSession(filter, cram, label) {
   const td = today(); let queue;
@@ -310,8 +493,8 @@ function startSession(filter, cram, label) {
     while (i < due.length || j < nw.length) { for (let k = 0; k < 4 && i < due.length; k++) queue.push(due[i++]); if (j < nw.length) queue.push(nw[j++]); }
   }
   if (!queue.length) { toast('V tomto výběru teď nic není.'); return; }
-  S = { queue, cram, label, done: 0, cur: null, shown: false, hist: [] };
-  go('opak'); $('studyIdle').hidden = true; $('studyBox').hidden = false; $('dock').hidden = true; $('gradesBar').hidden = false;
+  S = { queue, cram, label, done: 0, cur: null, shown: false, hist: [], from: TAB };
+  go('study'); $('dock').hidden = true; $('gradesBar').hidden = false;
   next();
 }
 function next() { if (!S.queue.length) { finish(); return; } S.cur = S.queue.shift(); S.shown = false; $('typeIn').value = ''; draw(); }
@@ -378,13 +561,17 @@ function finish() {
   const b = el('button', 'show', 'Zpět'); b.type = 'button'; b.onclick = endSession; $('grades').appendChild(b);
   syncNow(false);
 }
-function endSession() { S = null; $('studyBox').hidden = true; $('studyIdle').hidden = false; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go('dnes'); }
+function endSession() { const from = S ? S.from : 'dnes'; S = null; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go(TABS.includes(from) ? from : 'dnes'); }
 
 // ---------- ovládání
-document.querySelectorAll('nav.dock button').forEach(b => b.onclick = () => go(b.dataset.go));
+document.querySelectorAll('nav.dock button, button.link[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+document.querySelectorAll('#kSeg button').forEach(b => b.onclick = () => { KSEG = b.dataset.k; ls.set('k_seg', KSEG); renderKarticky(); });
 $('startAll').onclick = () => startSession(null, false, 'Vše na dnes');
 $('back').onclick = endSession; $('undo').onclick = undo; $('card').onclick = reveal;
 $('syncChip').onclick = () => syncCfg() ? syncNow(true) : go('vic');
+$('schedBox').addEventListener('toggle', () => { if ($('schedBox').open) renderSched(); });
+$('wkPrev').onclick = () => { if (wkSel > 1) { wkSel--; renderTyden(); } };
+$('wkNext').onclick = () => { if (wkSel < Math.max(...SEM.tydny.map(w => w.n))) { wkSel++; renderTyden(); } };
 $('typeBtn').onclick = () => { const on = $('typeBox').hidden; ls.set('k_type', on); aiLinks(); if (on) $('typeIn').focus(); };
 $('typeIn').oninput = () => { if (S && S.shown) aiLinks(); };
 document.addEventListener('keydown', e => {
@@ -408,9 +595,9 @@ $('sySave').onclick = async () => {
   try {
     const d = await api({ url, token }, 'GET', { action: 'ping' });
     $('syMsg').textContent = `Spojení OK – tabulka „${d.name}“. Nahrávám stav…`;
-    for (const s of SUBJS) dirty.add('srs_' + s); dirty.add('meta'); persist();
+    for (const s of SUBJS) dirty.add('srs_' + s); dirty.add('meta'); dirty.add('done'); persist();
     await syncNow(false);
-    $('syMsg').textContent = `Spojení OK – tabulka „${d.name}“. Pokrok se synchronizuje.`;
+    $('syMsg').textContent = `Spojení OK – tabulka „${d.name}“. Synchronizuje se.`;
   } catch (e) { $('syMsg').textContent = 'Spojení selhalo: ' + e.message + '. Zkontroluj URL (končí /exec), token a že nasazení má přístup „Kdokoli“.'; }
 };
 $('syNow').onclick = () => syncNow(true);
@@ -420,8 +607,8 @@ $('kBtn').onclick = () => {
   $('kMsg').textContent = n ? `${t}: ${n} kartiček rozloženo do opakování na příštích 7 dní.` : `${t}: nic k přesunutí, všechny už jsou v plánu.`; refresh();
 };
 $('exBtn').onclick = () => {
-  const blob = new Blob([JSON.stringify({ v: 1, srs, log, set })], { type: 'application/json' });
-  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = `karticky-zaloha-${dayIso(today())}.json`; document.body.appendChild(a); a.click();
+  const blob = new Blob([JSON.stringify({ v: 2, srs, log, set, done })], { type: 'application/json' });
+  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = `studium-zaloha-${dayIso(today())}.json`; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); $('exMsg').textContent = 'Záloha stažena.';
 };
 $('imFile').onchange = async e => {
@@ -430,8 +617,9 @@ $('imFile').onchange = async e => {
     const d = JSON.parse(await f.text()); if (!d.srs) throw new Error('bad'); let n = 0;
     for (const [k, v] of Object.entries(d.srs)) { if (!BYID[k]) continue; const m = mergeRec(srs[k], v); if (m !== srs[k]) { srs[k] = m; n++; dirty.add('srs_' + shardOf(k)); } }
     for (const [k, v] of Object.entries(d.log || {})) if (!log[k] || v[0] > log[k][0]) log[k] = v;
-    dirty.add('meta'); persist(); schedulePush(); refresh(); $('exMsg').textContent = `Obnoveno: ${n} kartiček.`;
-  } catch { $('exMsg').textContent = 'Soubor není záloha kartiček.'; }
+    for (const [k, v] of Object.entries(d.done || {})) if (!done[k] || v[1] > done[k][1]) done[k] = v;
+    dirty.add('meta'); dirty.add('done'); persist(); schedulePush(); refresh(); $('exMsg').textContent = `Obnoveno: ${n} kartiček.`;
+  } catch { $('exMsg').textContent = 'Soubor není záloha.'; }
   e.target.value = '';
 };
 document.addEventListener('visibilitychange', () => {
@@ -441,15 +629,17 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('online', () => syncNow(false));
 window.addEventListener('offline', syncState);
 window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (!S && TABS.includes(t) && t !== TAB) go(t); });
+setInterval(() => { if (TAB === 'dnes' && !S) renderNow(); }, 60e3);
 
 // ---------- start
-srs = ls.get('k_srs', {}); log = ls.get('k_log', {}); set = { ...set, ...ls.get('k_set', {}) };
+srs = ls.get('k_srs', {}); log = ls.get('k_log', {}); set = { ...set, ...ls.get('k_set', {}) }; done = ls.get('k_done', null);
+if (!done) { done = {}; for (const id of SEED_DONE) done[id] = [true, 1]; persist(); }
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('./sw.js');
-fetch('cards.json').then(r => r.json()).then(d => {
-  DATA = d; CARDS = d.cards; BYID = Object.fromEntries(CARDS.map(c => [c.id, c])); W1 = isoToDay(d.w1);
+Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then(r => r.json())]).then(([d, sm]) => {
+  DATA = d; SEM = sm; CARDS = d.cards; BYID = Object.fromEntries(CARDS.map(c => [c.id, c])); W1 = isoToDay(d.w1);
   const tm = new Map();
   for (const c of CARDS) { if (!tm.has(c.t)) tm.set(c.t, { t: c.t, tn: c.tn, s: c.s, w: c.w }); else tm.get(c.t).w = Math.min(tm.get(c.t).w, c.w); }
   TOPICS = [...tm.values()].sort((a, b) => a.s.localeCompare(b.s) || a.w - b.w || a.t.localeCompare(b.t));
   const t = location.hash.slice(1); go(TABS.includes(t) ? t : 'dnes');
   syncNow(false);
-}).catch(() => { $('hNote').textContent = 'Kartičky se nepodařilo načíst. Napoprvé je potřeba internet, pak už jdou offline.'; syncLabel('offline'); });
+}).catch(() => { document.querySelector('main').prepend(el('div', 'panel note', 'Data se nepodařilo načíst. Napoprvé je potřeba internet, pak už appka jde offline.')); syncLabel('offline'); });

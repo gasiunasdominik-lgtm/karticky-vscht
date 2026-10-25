@@ -6,7 +6,7 @@
  * GET  ?action=pull&token=…   → { ok, rows: { klic: { json, ts } } }
  * POST {"action":"push","token":…,"rows":[{key,json}]}  → přepíše řádky podle klíče
  *
- * List „Stav“: sloupec A klíč (srs_CHT, srs_MAT, …, meta), B čas zápisu, C… JSON rozdělený po 45 000 znacích
+ * List „Stav“: sloupec A klíč (srs_CHT, srs_MAT, …, meta = log a nastavení, done = odškrtání plánu), B čas zápisu, C… JSON rozdělený po 45 000 znacích
  * (Google Sheets dovolí max. 50 000 znaků v buňce). Slučování karet dělá appka, tady se jen ukládá.
  */
 
@@ -55,7 +55,7 @@ function doPost(e) {
       const keys = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues().map(r => r[0]) : [];
       const now = new Date().toISOString();
       (body.rows || []).forEach(({ key, json }) => {
-        if (!/^(srs_[A-Z]+|meta)$/.test(key)) return;
+        if (!/^(srs_[A-Z]+|meta|done)$/.test(key)) return;
         const parts = [];
         for (let i = 0; i < json.length; i += CHUNK) parts.push(json.slice(i, i + CHUNK));
         let idx = keys.indexOf(key), row;

@@ -1,7 +1,7 @@
 {
-  "name": "Kartičky VŠCHT",
-  "short_name": "Kartičky",
-  "description": "Opakování ze studijních listů – FSRS, odemykání podle týdne výuky, priorita testů",
+  "name": "Studium VŠCHT",
+  "short_name": "VŠCHT",
+  "description": "Plán semestru a opakovací kartičky – VŠCHT ZS 2026/27",
   "lang": "cs",
   "start_url": "./#dnes",
   "scope": "./",

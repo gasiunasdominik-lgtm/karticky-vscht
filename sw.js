@@ -1,5 +1,5 @@
 // Service worker: appka funguje offline. Při změně souborů zvyš VERSION (dělá to karticky_deploy.py).
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/app.js', 'cards.json', 'semestr.json',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const SHELL_CACHE = `shell-${VERSION}`;

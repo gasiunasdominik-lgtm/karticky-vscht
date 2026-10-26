@@ -193,6 +193,16 @@ function revDue() {
   const t = dayIso(today());
   return SEM.plan.filter(p => p.date <= t && !isDone('r-' + p.date + p.id + p.typ));
 }
+// hromadné odškrtnutí = 10+ položek opakování se stejným časem zápisu; najde poslední takovou dávku
+function lastBulk() {
+  const by = {};
+  for (const [id, v] of Object.entries(done)) if (id.startsWith('r-') && v[0] && v[1] > Date.now() - 3 * DAY) (by[v[1]] = by[v[1]] || []).push(id);
+  const ts = Object.keys(by).map(Number).filter(k => by[k].length >= 10).sort((a, b) => b - a)[0];
+  if (!ts) return null;
+  const d = new Date(ts);
+  return { ts, ids: by[ts], when: `${d.getDate()}. ${d.getMonth() + 1}. ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` };
+}
+function undoBulk(bulk) { const now = Date.now(); for (const id of bulk.ids) done[id] = [false, now]; dirty.add('done'); persist(); schedulePush(); }
 function inCamp() { const td = today(); return td >= isoToDay(SEM.camp[0]) && td <= isoToDay(SEM.camp[1]); }
 
 // ---------- sekce
@@ -277,8 +287,19 @@ function renderDnes() {
   if (!rd.length) { const nx = SEM.plan.find(p => p.date > t); ru.appendChild(el('li', 'empty', nx ? `Dnes nic. Další ${+nx.date.slice(8, 10)}. ${+nx.date.slice(5, 7)}.: ${nx.id}` : 'Dnes nic.')); }
   else if (rd.length > 6) ru.appendChild(el('li', 'empty', `+ ${rd.length - 6} dalších`));
   if (old.length) {
+    // dvojí klepnutí – jedno omylem nic neodškrtne
     const li = el('li', 'empty'), b = el('button', 'link', `Odškrtnout ${old.length} starších (zpoždění z minulých dní)`); b.type = 'button';
-    b.onclick = () => { const ts = Date.now(); for (const p of old) done['r-' + p.date + p.id + p.typ] = [true, ts]; dirty.add('done'); persist(); schedulePush(); renderDnes(); toast(`Odškrtnuto ${old.length} položek`); };
+    let armed = null;
+    b.onclick = () => {
+      if (!armed) { b.textContent = `Opravdu odškrtnout ${old.length} položek? Klepni znovu`; armed = setTimeout(() => { armed = null; b.textContent = `Odškrtnout ${old.length} starších (zpoždění z minulých dní)`; }, 4000); return; }
+      clearTimeout(armed); const ts = Date.now(); for (const p of old) done['r-' + p.date + p.id + p.typ] = [true, ts]; dirty.add('done'); persist(); schedulePush(); renderDnes(); toast(`Odškrtnuto ${old.length} položek – vrátit jde hned pod seznamem`);
+    };
+    li.appendChild(b); ru.appendChild(li);
+  }
+  const bulk = lastBulk();
+  if (bulk) {
+    const li = el('li', 'empty'), b = el('button', 'link', `↶ Vrátit hromadné odškrtnutí ${bulk.ids.length} položek (${bulk.when})`); b.type = 'button';
+    b.onclick = () => { undoBulk(bulk); renderDnes(); toast(`Vráceno ${bulk.ids.length} položek`); };
     li.appendChild(b); ru.appendChild(li);
   }
   // termíny

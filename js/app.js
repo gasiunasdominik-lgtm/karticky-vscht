@@ -89,6 +89,7 @@ async function api(cfg, method, payload) {
 function payloadFor(key) {
   if (key === 'meta') return JSON.stringify({ log, set });
   if (key === 'done') return JSON.stringify(done);
+  if (key === 'srs_DIAG') return JSON.stringify(diag);
   const sh = key.slice(4), part = {};
   for (const [id, v] of Object.entries(srs)) if (shardOf(id) === sh) part[id] = v;
   return JSON.stringify(part);
@@ -103,6 +104,9 @@ async function pull(cfg) {
       if (v.set && (v.set.ts || 0) > (set.ts || 0)) { set = { ...set, ...v.set }; changed = true; }
     } else if (key === 'done') {
       for (const [id, r] of Object.entries(v)) if (!done[id] || r[1] > done[id][1]) { done[id] = r; changed = true; }
+    } else if (key === 'srs_DIAG') {
+      for (const [id, r] of Object.entries(v)) if (!diag[id] || (r.ts || 0) > (diag[id].ts || 0)) { diag[id] = r; changed = true; }
+      ls.set('k_diag', diag);
     } else if (key.startsWith('srs_')) {
       for (const [id, r] of Object.entries(v)) { const m = mergeRec(srs[id], r); if (m !== srs[id]) { srs[id] = m; changed = true; } }
     }
@@ -206,7 +210,7 @@ function undoBulk(bulk) { const now = Date.now(); for (const id of bulk.ids) don
 function inCamp() { const td = today(); return td >= isoToDay(SEM.camp[0]) && td <= isoToDay(SEM.camp[1]); }
 
 // ---------- sekce
-const TABS = ['dnes', 'tyden', 'karticky', 'predmety', 'vic'];
+const TABS = ['dnes', 'tyden', 'ucit', 'karticky', 'predmety', 'vic'];
 let TAB = 'dnes', KSEG = ls.get('k_seg', 'opak');
 function go(tab) {
   TAB = tab;
@@ -222,13 +226,14 @@ function refresh() {
   if (TAB === 'dnes') renderDnes();
   if (TAB === 'tyden') renderTyden();
   if (TAB === 'karticky') renderKarticky();
+  if (TAB === 'ucit') renderUcit();
   if (TAB === 'predmety') renderPredmety();
   if (TAB === 'vic') renderVic();
 }
 function renderHeader() {
   const wk = weekNow(); $('wkChip').textContent = inCamp() ? 'soustředění' : wk >= 1 && wk <= 14 ? `${wk}. týden` : wk > 14 ? 'zkouškové' : 'před semestrem';
   const { due, fresh } = pools(); const n = due.length + Math.min(newLeft(), fresh.length);
-  $('badge').hidden = !n; $('badge').textContent = n;
+  $('badge').hidden = true; $('badge').textContent = n;
   syncState();
 }
 
@@ -584,8 +589,248 @@ function finish() {
 }
 function endSession() { const from = S ? S.from : 'dnes'; S = null; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go(TABS.includes(from) ? from : 'dnes'); }
 
+// ---------- UČIT: diagnostika → mapa znalostí → „Co teď“ (vrstvy V0–V4, uceni.json z build_uceni.py)
+// stav tématu: diag[tid] = { st, lv, h:[[den,qid,g]], nx, up, ts }
+//   st: 'B' nebráno · 'X' nerozumím · 1 neumím · 2 zhruba · 3 skoro · 4 umím ; lv: vrstva 0–4 ; nx: den dalšího opakování ; up: den posledního postupu
+let UC = null, UT = [], UBY = {}, diag = {}, USEG = ls.get('k_useg', 'ted'), UQ = null;
+let UCTX = { min: 25, kde: 'doma', ...ls.get('k_uctx', {}) };
+const STN = { B: 'nebráno', X: 'nerozumím', 1: 'neumím', 2: 'zhruba', 3: 'skoro', 4: 'umím' };
+const STC = { B: 'u-b', X: 'u-x', 1: 'u-1', 2: 'u-2', 3: 'u-3', 4: 'u-4', 0: 'u-0' };
+const WEAK = { 0: 0.9, X: 1, 1: 1, 2: 0.7, 3: 0.4, 4: 0.15, B: 0 };
+const GAP = [1, 2, 4, 7, 14];
+const KDE = { cesta: '🚆 Cesta / mobil', doma: '🏠 Doma / papír', skola: '🏫 Škola / pauza' };
+const stOf = t => (diag[t.id] || {}).st ?? 0;
+const lvOf = t => (diag[t.id] || {}).lv || 0;
+const taught = t => t.d && isoToDay(t.d) <= today();
+function topicTest(t) {
+  let best = null; const td = today();
+  for (const x of UC.tests) {
+    if (x.s !== t.s) continue; const d = isoToDay(x.d); if (d < td) continue;
+    const i = t.test.indexOf(x.n); const ok = i >= 0 && !/[IVX]/.test(t.test[i + x.n.length] || '');
+    if (ok && (!best || d < best.day)) best = { day: d, n: x.n };
+  }
+  if (!best) { const ex = EXAM[t.s]; if (ex && isoToDay(ex) >= td) best = { day: isoToDay(ex), n: 'zkouška' }; }
+  return best;
+}
+function prio(t) {
+  const st = stOf(t); if (st === 'B' || !taught(t)) return -1;
+  const ts = topicTest(t), dd = ts ? ts.day - today() : 60, r = diag[t.id] || {};
+  let p = WEAK[st] / (1 + dd / 7);
+  if (r.nx && r.nx <= today()) p += 0.25 / (1 + dd / 14);
+  return p;
+}
+function saveDiag(tid, rec) { diag[tid] = { ...rec, ts: Date.now() }; ls.set('k_diag', diag); dirty.add('srs_DIAG'); persist(); schedulePush(); }
+function grade2st(gs) {
+  if (gs.includes('B')) return 'B'; if (gs.includes('X')) return 'X';
+  const n = gs.map(g => +g); if (n[0] <= 1) return 1; if (n[0] === 2) return 2;
+  if (n.length < 2) return 3; return n[1] === 3 ? 4 : n[1] === 2 ? 3 : 2;
+}
+const lvFromSt = st => ({ X: 0, 1: 0, 2: 1, 3: 2, 4: 3 }[st] ?? 0);
+function nextRev(t, lv) { const ts = topicTest(t); let nx = today() + GAP[Math.min(lv, 4)]; if (ts && nx >= ts.day) nx = Math.max(today() + 1, ts.day - 1); return nx; }
+
+// co dělat na které vrstvě (od nejjednoduššího k nejsložitějšímu), podle místa
+function activity(t, kde) {
+  const lv = lvOf(t), st = stOf(t), list = `${t.id} ${t.n}`;
+  if (st === 0) return { m: 4, v: 'Ověřit', co: 'Rychlá diagnostika: 2 otázky.', kind: 'diag' };
+  if (lv === 0) return { m: 8, v: 'V0', co: 'Smysl tématu v 5 bodech a co budeš umět, pak 2 otázky.', kind: 'learn' };
+  if (lv === 1) return kde === 'doma'
+    ? { m: 25, v: 'V1', co: `List ${list}: sekce 3 Jádro + 1 řešený příklad (sekce 5). Pak 3 otázky.`, kind: 'learn' }
+    : { m: 8, v: 'V1', co: 'Vybavování: 4 otázky z tématu, odpověz nahlas nebo v hlavě, pak zkontroluj.', kind: 'learn' };
+  if (lv === 2) return kde === 'doma'
+    ? { m: 40, v: 'V2', co: `List ${list}: sekce 4 Proč to tak je + sekce 6 Procvič sám (3 příklady na papír). Pak 3 otázky.`, kind: 'learn' }
+    : { m: 8, v: 'V2', co: 'Těžší otázky z tématu, promíchané. Odpověz celou větou, než otočíš.', kind: 'learn' };
+  if (lv === 3) return kde === 'doma'
+    ? { m: 40, v: 'V3', co: `Sbírka 02_PRIKLADY k ${t.id}: 3 příklady z druhé půlky (těžší) + 1 úloha ze starého testu, na čas.`, kind: 'learn' }
+    : { m: 4, v: 'V3', co: 'Krátké opakování: 2 otázky (rozložené opakování drží látku).', kind: 'learn' };
+  return kde === 'doma'
+    ? { m: 45, v: 'V4', co: `Nejtěžší úlohy k ${t.id}: zkouškové příklady (staré písemky, 30_PROCVICOVANI) a otázky z ústní části – vysvětli souvislosti s dalšími tématy předmětu.`, kind: 'learn' }
+    : { m: 4, v: 'V4', co: 'Krátké opakování: 2 otázky.', kind: 'learn' };
+}
+function plan(min, kde) {
+  const cand = UT.filter(t => prio(t) > 0).sort((a, b) => prio(b) - prio(a));
+  const out = []; let left = min;
+  const undiag = UT.filter(t => taught(t) && stOf(t) === 0);
+  if (undiag.length >= 8 && min >= 10) { const m = Math.min(15, Math.max(8, Math.round(min / 3))); out.push({ diag: true, m, n: Math.floor(m / 1.5) }); left -= m; }
+  // málo času do testu → šíře před hloubkou: jen V0/V1 pro co nejvíc témat
+  for (const t of cand) {
+    if (left < 4) break; if (undiag.length >= 8 && stOf(t) === 0) continue;
+    let a = activity(t, kde); const ts = topicTest(t), dd = ts ? ts.day - today() : 99;
+    if (dd <= 2 && a.m > 10) a = { m: 8, v: 'V0', co: `Test ${inDays(dd)}: jen to podstatné – smysl tématu, klíčové vzorce, 3 otázky.`, kind: 'learn' };
+    if (a.m > left) { if (a.m > 10 && left >= 8 && kde === 'doma') a = { ...a, m: left, co: a.co + ' (zkrácená verze – kolik stihneš)' }; else continue; }
+    out.push({ t, a, ts }); left -= a.m;
+  }
+  return out;
+}
+
+// ----- render
+function renderUcit() {
+  if (!UC) return;
+  document.querySelectorAll('#uSeg button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.u === USEG)));
+  document.querySelectorAll('section[data-tab="ucit"] > [data-u]').forEach(p => p.hidden = p.dataset.u !== USEG || !!UQ);
+  $('uRun').hidden = !UQ; if (UQ) return drawUQ();
+  if (USEG === 'ted') renderTed(); if (USEG === 'diag') renderDiagIntro(); if (USEG === 'mapa') renderMapa();
+}
+function chipRow(opts, cur, on) {
+  const r = el('div', 'row'); for (const [v, lab] of opts) { const b = el('button', 'chip', lab); b.type = 'button'; b.setAttribute('aria-pressed', String(v === cur)); b.onclick = () => on(v); r.appendChild(b); } return r;
+}
+function renderTed() {
+  const box = $('uTed'); box.textContent = '';
+  const ctx = panel('Kolik máš času a kde jsi?',
+    chipRow([[10, '10 min'], [25, '25 min'], [50, '50 min'], [90, '1,5 h']], UCTX.min, v => { UCTX.min = v; ls.set('k_uctx', UCTX); renderTed(); }),
+    chipRow(Object.entries(KDE), UCTX.kde, v => { UCTX.kde = v; ls.set('k_uctx', UCTX); renderTed(); }));
+  box.appendChild(ctx);
+  const p = plan(UCTX.min, UCTX.kde), pl = panel('Plán na teď'), ul = el('div', 'list');
+  if (!p.length) ul.appendChild(el('div', 'note', 'Nic naléhavého. Dej si opakování z Mapy, nebo odpočívej.'));
+  for (const it of p) {
+    const row = el('div', 'uitem');
+    if (it.diag) {
+      row.append(el('b', null, `Diagnostika · ${it.m} min`), el('span', 'note', `Zjistíme, co umíš: asi ${it.n} témat, nejdřív ta s nejbližším testem.`));
+      const b = el('button', 'primary', 'Začít diagnostiku'); b.type = 'button'; b.onclick = () => startDiag(it.n); row.appendChild(b);
+    } else {
+      const st = stOf(it.t), hd = el('div', 'row');
+      hd.append(tag(it.t.s), el('b', null, it.t.n), el('span', 'chip ' + STC[st], STN[st] || 'neověřeno'), el('span', 'chip', `${it.a.v} · ${it.a.m} min`));
+      row.append(hd, el('span', 'note', (it.ts ? `${it.ts.n} ${inDays(it.ts.day - today())} · ` : '') + it.a.co));
+      const b = el('button', 'ghost', it.a.kind === 'diag' ? 'Ověřit' : 'Začít'); b.type = 'button';
+      b.onclick = () => it.a.kind === 'diag' ? startDiag(1, [it.t]) : startLearn(it.t, it.a); row.appendChild(b);
+    }
+    ul.appendChild(row);
+  }
+  pl.appendChild(ul);
+  pl.appendChild(el('div', 'note', 'Každé téma začíná nejjednodušší vrstvou (V0 = smysl a jádro na 5 minut). Když dvakrát v různé dny odpovíš správně, posuneš se o vrstvu výš – podrobnější výklad, příklady, těžší úlohy.'));
+  box.appendChild(pl);
+}
+function renderDiagIntro() {
+  const box = $('uDiag'); box.textContent = '';
+  const tt = UT.filter(taught), undone = tt.filter(t => stOf(t) === 0);
+  const p = panel('Diagnostika',
+    el('p', null, `Probrané látky je ${tt.length} témat, neověřeno ${undone.length}. Každé téma = 1–2 otázky (asi 1 minuta). Začíná se předmětem s nejbližším testem. Skončit můžeš kdykoli, pokračuje se tam, kde jsi přestal.`),
+    el('p', 'note', 'Buď přísný: „Věděl jsem“ jen když bys to napsal do testu. „Nerozumím otázce“ je cenná informace – přesně tam začneme vysvětlovat od základu.'));
+  const r = el('div', 'row');
+  for (const n of [10, 25, undone.length]) { if (!n) continue; const b = el('button', n === 10 ? 'primary' : 'ghost', n === undone.length ? `Všechno (${n})` : `${n} témat`); b.type = 'button'; b.disabled = !undone.length; b.onclick = () => startDiag(n); r.appendChild(b); }
+  p.appendChild(r);
+  if (!undone.length) p.appendChild(el('div', 'note', 'Všechno probrané máš ověřené. Znovu ověřit téma můžeš v Mapě.'));
+  box.appendChild(p);
+}
+function renderMapa() {
+  const box = $('uMapa'); box.textContent = '';
+  const tot = {}; for (const t of UT.filter(taught)) { const s = stOf(t); tot[s] = (tot[s] || 0) + 1; }
+  const k = el('div', 'kpis');
+  for (const [s, lab] of [[4, 'umím'], [3, 'skoro'], [2, 'zhruba'], ['1X', 'neumím / nerozumím']]) {
+    const n = s === '1X' ? (tot[1] || 0) + (tot.X || 0) : tot[s] || 0; const d = el('div'); d.append(el('b', 'num', String(n)), el('span', null, lab)); k.appendChild(d);
+  }
+  box.appendChild(panel(null, k, el('div', 'note', `Neověřeno: ${tot[0] || 0} · nebráno: ${tot.B || 0} · látka, která ještě nebyla, se nepočítá.`)));
+  for (const s of SUBJS) {
+    const ts = UT.filter(t => t.s === s); if (!ts.length) continue;
+    const ul = el('div', 'list');
+    for (const t of ts) {
+      const st = stOf(t), row = el('button', 'urow'); row.type = 'button';
+      row.append(el('i', 'dot ' + (taught(t) ? STC[st] : 'u-f')), el('span', 't', t.n),
+        el('span', 'note', taught(t) ? (st ? `${STN[st]} · V${lvOf(t)}` : 'neověřeno') : 'teprve bude ' + fmtD(isoToDay(t.d))));
+      row.onclick = () => topicSheet(t); ul.appendChild(row);
+    }
+    const tsx = UT.find(t => t.s === s && topicTest(t)), nt = tsx ? topicTest(tsx) : null;
+    box.appendChild(panel(`${SUBJN[s]}${nt ? ` · ${nt.n} ${inDays(nt.day - today())}` : ''}`, ul));
+  }
+}
+function topicSheet(t) {
+  const box = $('uMapa'); box.textContent = ''; window.scrollTo({ top: 0 });
+  const back = el('button', 'ghost', '‹ Mapa'); back.type = 'button'; back.onclick = renderMapa;
+  const p = panel(t.n, el('div', 'note', `${SUBJN[t.s]} · výklad ${t.d ? fmtD(isoToDay(t.d)) : '–'} · ${t.test}`));
+  if (t.v0.length) { const ul = el('ul', 'v0'); t.v0.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Smysl tématu (V0)'), ul); }
+  if (t.cil.length) { const ul = el('ul', 'v0'); t.cil.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Co budeš umět'), ul); }
+  const r = el('div', 'row');
+  const b1 = el('button', 'primary', 'Učit teď'); b1.type = 'button'; b1.onclick = () => startLearn(t, activity(t, UCTX.kde));
+  const b2 = el('button', 'ghost', 'Znovu ověřit'); b2.type = 'button'; b2.onclick = () => startDiag(1, [t]);
+  r.append(b1, b2); p.appendChild(r);
+  box.append(back, p);
+}
+
+// ----- běh: diagnostika i učení sdílí jednu obrazovku otázek
+function startDiag(n, only) {
+  const list = only || UT.filter(t => taught(t) && stOf(t) === 0).sort((a, b) => ((topicTest(a) || {}).day || 1e9) - ((topicTest(b) || {}).day || 1e9) || a.d.localeCompare(b.d)).slice(0, n);
+  if (!list.length) return toast('Není co ověřovat');
+  UQ = { mode: 'diag', topics: list, ti: 0, step: 0, gs: [], shown: false, n: list.length };
+  renderUcit(); window.scrollTo({ top: 0 });
+}
+function startLearn(t, a) {
+  const lv = lvOf(t), k = lv >= 3 ? 2 : lv === 0 ? 2 : lv === 1 ? 4 : 3;
+  const h = new Set(((diag[t.id] || {}).h || []).filter(x => x[2] === 3 && x[0] >= today() - 1).map(x => x[1]));
+  let qs = t.qs.filter(q => !h.has(q.id));
+  if (lv >= 2) qs = qs.slice().reverse(); // těžší otázky bývají na konci sekce
+  UQ = { mode: 'learn', t, a, qs: qs.slice(0, k), qi: -1, gs: [], shown: false };
+  renderUcit(); window.scrollTo({ top: 0 });
+}
+function diagQ(t, step) { return step === 0 ? t.qs[0] : t.qs[Math.min(t.qs.length - 1, 3)]; }
+function drawUQ() {
+  const box = $('uRun'); box.textContent = '';
+  const stop = el('div', 'row'); const end = el('button', 'ghost', 'Konec'); end.type = 'button'; end.onclick = () => { UQ = null; renderUcit(); syncNow(false); };
+  stop.appendChild(end);
+  if (UQ.mode === 'diag') {
+    const t = UQ.topics[UQ.ti], q = diagQ(t, UQ.step), ts = topicTest(t);
+    stop.appendChild(el('span', 'note', `téma ${UQ.ti + 1} / ${UQ.n} · skončit můžeš kdykoli`)); box.appendChild(stop);
+    const c = el('div', 'card'); c.append(el('div', 'meta', `${SUBJN[t.s]} · ${t.n}${ts ? ` · ${ts.n} ${inDays(ts.day - today())}` : ''}`), el('div', 'q', q.q));
+    if (UQ.shown) c.appendChild(el('div', 'a', q.a));
+    box.appendChild(c);
+    const g = el('div', 'ugr');
+    const btn = (lab, cls, fn) => { const b = el('button', cls, lab); b.type = 'button'; b.onclick = fn; g.appendChild(b); };
+    if (!UQ.shown) {
+      btn('Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); });
+      btn('Nevím vůbec', 'ghost', () => diagGrade(1, q)); btn('Nerozumím otázce', 'ghost', () => diagGrade('X', q)); btn('Tohle jsme nebrali', 'ghost', () => diagGrade('B', q));
+    } else { btn('Věděl jsem', 'g3', () => diagGrade(3, q)); btn('Zhruba', 'g2', () => diagGrade(2, q)); btn('Nevěděl', 'g1', () => diagGrade(1, q)); }
+    box.appendChild(g); return;
+  }
+  const t = UQ.t; stop.appendChild(el('span', 'note', `${t.n} · ${UQ.a.v}`)); box.appendChild(stop);
+  if (UQ.qi < 0) {
+    const p = panel(t.n, el('div', 'note', UQ.a.co));
+    if (UQ.a.v === 'V0' || lvOf(t) === 0) {
+      if (t.v0.length) { const ul = el('ul', 'v0'); t.v0.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Smysl tématu'), ul); }
+      if (t.cil.length) { const ul = el('ul', 'v0'); t.cil.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Co budeš umět'), ul); }
+    }
+    const b = el('button', 'primary', UQ.qs.length ? `Hotovo – teď ${UQ.qs.length} otázky` : 'Hotovo'); b.type = 'button';
+    b.onclick = () => { if (!UQ.qs.length) return learnDone(); UQ.qi = 0; UQ.shown = false; drawUQ(); };
+    p.appendChild(b); box.appendChild(p); return;
+  }
+  const q = UQ.qs[UQ.qi], c = el('div', 'card');
+  c.append(el('div', 'meta', `otázka ${UQ.qi + 1} / ${UQ.qs.length} · nejdřív odpověz sám, pak otoč`), el('div', 'q', q.q));
+  if (UQ.shown) c.appendChild(el('div', 'a', q.a));
+  box.appendChild(c);
+  const g = el('div', 'ugr'), btn = (lab, cls, fn) => { const b = el('button', cls, lab); b.type = 'button'; b.onclick = fn; g.appendChild(b); };
+  if (!UQ.shown) { btn('Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }); btn('Nerozumím', 'ghost', () => learnGrade(0, q)); }
+  else { btn('Věděl jsem', 'g3', () => learnGrade(3, q)); btn('Zhruba', 'g2', () => learnGrade(2, q)); btn('Nevěděl', 'g1', () => learnGrade(1, q)); }
+  box.appendChild(g);
+}
+function diagGrade(g, q) {
+  const t = UQ.topics[UQ.ti]; UQ.gs.push(g);
+  const r = diag[t.id] || { h: [] }; r.h = [...(r.h || []), [today(), q.id, g === 'X' ? 0 : g === 'B' ? -1 : g]].slice(-40);
+  const goOn = UQ.step === 0 && g === 3 && t.qs.length > 1;
+  if (goOn) { saveDiag(t.id, r); UQ.step = 1; UQ.shown = false; return drawUQ(); }
+  const st = grade2st(UQ.gs.map(String)); const lv = lvFromSt(st);
+  saveDiag(t.id, { ...r, st: st === 'B' || st === 'X' ? st : +st, lv, nx: st === 'B' ? 0 : today() + (lv >= 3 ? 3 : 1), up: today() });
+  UQ.ti++; UQ.step = 0; UQ.gs = []; UQ.shown = false;
+  if (UQ.ti >= UQ.topics.length) { const n = UQ.n; UQ = null; toast(`Hotovo: ${n} témat ověřeno`); USEG = 'mapa'; ls.set('k_useg', USEG); renderUcit(); syncNow(false); return; }
+  drawUQ();
+}
+function learnGrade(g, q) {
+  UQ.gs.push(g); const t = UQ.t, r = diag[t.id] || { h: [] };
+  r.h = [...(r.h || []), [today(), q.id, g]].slice(-40); saveDiag(t.id, r);
+  UQ.qi++; UQ.shown = false; if (UQ.qi >= UQ.qs.length) return learnDone(); drawUQ();
+}
+function learnDone() {
+  const t = UQ.t, r = { ...(diag[t.id] || { h: [] }) }, gs = UQ.gs, ok = gs.filter(g => g === 3).length, bad = gs.filter(g => g <= 1).length;
+  let lv = r.lv || 0, msg;
+  if (gs.length && ok >= Math.ceil(gs.length * 2 / 3) && r.up !== today()) { lv = Math.min(4, lv + 1); r.up = today(); msg = `Postup na V${lv}. Příště podrobněji.`; }
+  else if (gs.length && ok >= Math.ceil(gs.length * 2 / 3)) msg = 'Správně. Další vrstva až v jiný den – rozložené opakování drží líp.';
+  else if (bad > ok) { lv = Math.max(0, lv - 1); msg = 'Zatím to nesedí – příště jednodušší vrstva a víc vysvětlení.'; }
+  else msg = 'Zhruba. Zopakujeme zítra.';
+  const st = r.st === 'X' && ok ? 1 : r.st;
+  const nst = lv >= 4 ? 4 : lv === 3 ? Math.max(3, +st || 0) : lv === 2 ? 3 : lv === 1 ? 2 : (st === 'X' && !ok ? 'X' : 1);
+  saveDiag(t.id, { ...r, lv, st: nst, nx: nextRev(t, lv) });
+  UQ = null; toast(msg); renderUcit(); syncNow(false);
+}
+
 // ---------- ovládání
 document.querySelectorAll('nav.dock button, button.link[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+document.querySelectorAll('#uSeg button').forEach(b => b.onclick = () => { USEG = b.dataset.u; ls.set('k_useg', USEG); UQ = null; renderUcit(); });
 document.querySelectorAll('#kSeg button').forEach(b => b.onclick = () => { KSEG = b.dataset.k; ls.set('k_seg', KSEG); renderKarticky(); });
 $('startAll').onclick = () => startSession(null, false, 'Vše na dnes');
 $('back').onclick = endSession; $('undo').onclick = undo; $('card').onclick = reveal;
@@ -616,7 +861,7 @@ $('sySave').onclick = async () => {
   try {
     const d = await api({ url, token }, 'GET', { action: 'ping' });
     $('syMsg').textContent = `Spojení OK – tabulka „${d.name}“. Nahrávám stav…`;
-    for (const s of SUBJS) dirty.add('srs_' + s); dirty.add('meta'); dirty.add('done'); persist();
+    for (const s of SUBJS) dirty.add('srs_' + s); dirty.add('meta'); dirty.add('done'); dirty.add('srs_DIAG'); persist();
     await syncNow(false);
     $('syMsg').textContent = `Spojení OK – tabulka „${d.name}“. Synchronizuje se.`;
   } catch (e) { $('syMsg').textContent = 'Spojení selhalo: ' + e.message + '. Zkontroluj URL (končí /exec), token a že nasazení má přístup „Kdokoli“.'; }
@@ -653,10 +898,11 @@ window.addEventListener('hashchange', () => { const t = location.hash.slice(1); 
 setInterval(() => { if (TAB === 'dnes' && !S) renderNow(); }, 60e3);
 
 // ---------- start
-srs = ls.get('k_srs', {}); log = ls.get('k_log', {}); set = { ...set, ...ls.get('k_set', {}) }; done = ls.get('k_done', null);
+srs = ls.get('k_srs', {}); diag = ls.get('k_diag', {}); log = ls.get('k_log', {}); set = { ...set, ...ls.get('k_set', {}) }; done = ls.get('k_done', null);
 if (!done) { done = {}; for (const id of SEED_DONE) done[id] = [true, 1]; persist(); }
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('./sw.js');
-Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then(r => r.json())]).then(([d, sm]) => {
+Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then(r => r.json()), fetch('uceni.json').then(r => r.json()).catch(() => null)]).then(([d, sm, uc]) => {
+  if (uc) { UC = uc; UT = uc.topics; UBY = Object.fromEntries(UT.map(t => [t.id, t])); }
   DATA = d; SEM = sm; CARDS = d.cards; BYID = Object.fromEntries(CARDS.map(c => [c.id, c])); W1 = isoToDay(d.w1);
   const tm = new Map();
   for (const c of CARDS) { if (!tm.has(c.t)) tm.set(c.t, { t: c.t, tn: c.tn, s: c.s, w: c.w }); else tm.get(c.t).w = Math.min(tm.get(c.t).w, c.w); }

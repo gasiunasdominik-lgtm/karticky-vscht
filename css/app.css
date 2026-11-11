@@ -236,3 +236,12 @@ details.fold.panel{display:block;overflow:hidden}
 details.fold.panel>.ucont{margin-top:10px}
 .ucont p,.ucont li{overflow-x:auto;overflow-y:hidden}
 .ucard{overflow:hidden}
+
+/* řešené příklady jako v testu */
+.ucont blockquote strong:first-child{color:var(--accent)}
+.ucont .math.display{background:color-mix(in srgb,var(--accent) 6%,transparent);border-left:3px solid var(--accent);border-radius:6px;padding:4px 8px;margin:8px 0}
+.ucont ol{padding-left:22px}
+.ucont ol li{margin:.3em 0}
+.ucont p>strong:first-child{color:var(--ink)}
+.ucont figure img[src$=".svg"]{border:1px solid var(--line)}
+@media (max-width:520px){.ucont .katex-display{font-size:.86em}.ucard .katex-display{font-size:.9em}}

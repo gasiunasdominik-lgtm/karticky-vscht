@@ -767,7 +767,7 @@ async function topicSheet(t) {
   const b2 = el('button', 'ghost', 'Ověřit znovu'); b2.type = 'button'; b2.onclick = () => { go('ucit'); startDiag(1, [t]); };
   r.append(b1, b2); hd.appendChild(r); box.append(back, hd);
   const o = await loadObs(t.id);
-  const secs = [['v0', 'O čem to je'], ['cil', 'Co budeš umět'], ['jadro', 'Jádro'], ['proc', 'Proč to tak je'], ['rp', 'Řešené příklady'], ['chyby', 'Časté chyby'], ['souv', 'Souvislosti']];
+  const secs = [['cil', 'Co budeš umět'], ['pre', 'Nejdřív se zkus'], ['v0', 'O čem to je'], ['jadro', 'Jádro'], ['proc', 'Proč to tak je'], ['rp', 'Řešené příklady'], ['chyby', 'Časté chyby'], ['souv', 'Souvislosti']];
   for (const [k, n] of secs) if (o[k]) { const d = el('details', 'panel fold'); const s = el('summary'); s.appendChild(el('h3', null, n)); d.appendChild(s); d.appendChild(H('ucont', o[k])); box.appendChild(d); }
 }
 
@@ -788,9 +788,9 @@ async function startLearn(t, ctx, review) {
   const Q = n => qs.slice(0, n).forEach(q => steps.push({ k: 'q', q }));
   const X = (n, cnt) => P(n).slice(0, cnt).forEach(p => steps.push({ k: 'p', p, lv: n }));
   if (review) Q(2);
-  else if (lv === 0) { C('O čem to je', 'v0'); if (!short) C('Co budeš umět', 'cil'); Q(2); }
-  else if (lv === 1) { if (!short && o.pre) steps.push({ k: 'c', title: 'Nejdřív zkus odpovědět v duchu', html: o.pre, pre: true }); C('Jádro', 'jadro'); if (doma && !short) X(1, 2); Q(short ? 2 : 3); }
-  else if (lv === 2) { if (!short) C('Proč to tak je', 'proc'); if (doma) { C('Řešené příklady', 'rp'); X(2, short ? 1 : 3); } Q(short ? 2 : 3); }
+  else if (lv === 0) { C('Co budeš umět', 'cil'); if (!short && o.pre) steps.push({ k: 'c', title: 'Nejdřív zkus odpovědět (nevadí, když nevíš)', html: o.pre, pre: true }); C('O čem to je', 'v0'); Q(2); }
+  else if (lv === 1) { C('Jádro', 'jadro'); if (doma && !short) { C('Řešené příklady – takhle to vypadá v testu', 'rp'); X(1, 2); } Q(short ? 2 : 3); }
+  else if (lv === 2) { if (!short) C('Proč to tak je', 'proc'); if (doma) X(2, short ? 1 : 3); else if (!short) C('Řešené příklady – takhle to vypadá v testu', 'rp'); Q(short ? 2 : 3); }
   else if (lv === 3) { if (doma && P(3).length) X(3, short ? 1 : 3); else C('Časté chyby', 'chyby'); Q(short ? 2 : 4); }
   else { if (doma && P(4).length) X(4, short ? 1 : 2); else C('Souvislosti', 'souv'); Q(short ? 2 : 4); }
   if (!steps.length) Q(3);
@@ -833,7 +833,7 @@ function drawUQ() {
         : btns([['Vyšlo', 'g3', () => { rec(t, id, 3); UQ.gs.push(3); next(); }], ['Nevyšlo – ukaž řešení', 'g1', () => { rec(t, id, 1); UQ.gs.push(1); UQ.shown = 'sol'; drawUQ(); }]]));
     return;
   }
-  const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', 'Odpověz sám, pak otoč'), H('q', q.q)); if (UQ.shown) c.appendChild(H('a', q.a)); box.appendChild(c);
+  const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', q.c ? `${q.c} · odpověz sám, pak otoč` : 'Odpověz sám, pak otoč'), H('q', q.q)); if (UQ.shown) c.appendChild(H('a', q.a)); box.appendChild(c);
   const g = gr => { rec(t, q.id, gr); UQ.gs.push(gr); next(); };
   box.appendChild(!UQ.shown ? btns([['Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nerozumím', 'ghost', () => g(0)]])
     : btns([['Věděl jsem', 'g3', () => g(3)], ['Zhruba', 'g2', () => g(2)], ['Nevěděl', 'g1', () => g(1)]]));

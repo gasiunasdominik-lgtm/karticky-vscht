@@ -210,8 +210,8 @@ function undoBulk(bulk) { const now = Date.now(); for (const id of bulk.ids) don
 function inCamp() { const td = today(); return td >= isoToDay(SEM.camp[0]) && td <= isoToDay(SEM.camp[1]); }
 
 // ---------- sekce
-const TABS = ['dnes', 'tyden', 'ucit', 'karticky', 'predmety', 'vic'];
-let TAB = 'dnes', KSEG = ls.get('k_seg', 'opak');
+const TABS = ['ucit', 'mapa', 'tyden', 'vic', 'dnes', 'karticky', 'predmety'];
+let TAB = 'ucit', KSEG = ls.get('k_seg', 'opak');
 function go(tab) {
   TAB = tab;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
@@ -227,6 +227,7 @@ function refresh() {
   if (TAB === 'tyden') renderTyden();
   if (TAB === 'karticky') renderKarticky();
   if (TAB === 'ucit') renderUcit();
+  if (TAB === 'mapa') renderMapa();
   if (TAB === 'predmety') renderPredmety();
   if (TAB === 'vic') renderVic();
 }
@@ -589,19 +590,28 @@ function finish() {
 }
 function endSession() { const from = S ? S.from : 'dnes'; S = null; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go(TABS.includes(from) ? from : 'dnes'); }
 
-// ---------- UČIT: diagnostika → mapa znalostí → „Co teď“ (vrstvy V0–V4, uceni.json z build_uceni.py)
-// stav tématu: diag[tid] = { st, lv, h:[[den,qid,g]], nx, up, ts }
-//   st: 'B' nebráno · 'X' nerozumím · 1 neumím · 2 zhruba · 3 skoro · 4 umím ; lv: vrstva 0–4 ; nx: den dalšího opakování ; up: den posledního postupu
-let UC = null, UT = [], UBY = {}, diag = {}, USEG = ls.get('k_useg', 'ted'), UQ = null;
-let UCTX = { min: 25, kde: 'doma', ...ls.get('k_uctx', {}) };
-const STN = { B: 'nebráno', X: 'nerozumím', 1: 'neumím', 2: 'zhruba', 3: 'skoro', 4: 'umím' };
-const STC = { B: 'u-b', X: 'u-x', 1: 'u-1', 2: 'u-2', 3: 'u-3', 4: 'u-4', 0: 'u-0' };
-const WEAK = { 0: 0.9, X: 1, 1: 1, 2: 0.7, 3: 0.4, 4: 0.15, B: 0 };
+// ---------- UČIT: jeden další krok · diagnostika · mapa znalostí · vrstvy V0–V4 (uceni.json + obsah/<ID>.json z build_uceni.py)
+// diag[tid] = { st, lv, h:[[den, id, g]], nx, up, ts } · st: 'B' nebráno · 'X' nerozumím · 1 neumím · 2 zhruba · 3 skoro · 4 umím
+let UC = null, UT = [], UBY = {}, diag = {}, UQ = null, UOPEN = null, OBS = {};
+let UCTX = { min: 25, kde: 'doma', ts: 0, ...ls.get('k_uctx', {}) };
+const STN = { 0: 'neověřeno', B: 'nebráno', X: 'nerozumím', 1: 'neumím', 2: 'zhruba', 3: 'skoro', 4: 'umím' };
+const STC = { 0: 'u-0', B: 'u-b', X: 'u-x', 1: 'u-1', 2: 'u-2', 3: 'u-3', 4: 'u-4' };
+const LVN = ['Základ – o čem to je', 'Jádro a první příklady', 'Proč to tak je + příklady', 'Testová úroveň', 'Výzva'];
 const GAP = [1, 2, 4, 7, 14];
-const KDE = { cesta: '🚆 Cesta / mobil', doma: '🏠 Doma / papír', skola: '🏫 Škola / pauza' };
+const KDE = { cesta: '🚆 Cesta', doma: '🏠 Doma', skola: '🏫 Pauza' };
+const STEPMIN = [8, 20, 30, 35, 40];      // odhad minut na posun o vrstvu
 const stOf = t => (diag[t.id] || {}).st ?? 0;
 const lvOf = t => (diag[t.id] || {}).lv || 0;
 const taught = t => t.d && isoToDay(t.d) <= today();
+const isTheory = t => !t.np || !Object.keys(t.np).length;
+function mathify(root) {
+  if (!window.katex || !root) return;
+  root.querySelectorAll('[data-tex]:not([data-done])').forEach(e => {
+    try { katex.render(e.dataset.tex, e, { displayMode: e.classList.contains('display'), throwOnError: false, output: 'html' }); } catch { e.textContent = e.dataset.tex; }
+    e.dataset.done = '1';
+  });
+}
+const H = (cls, htmlStr) => { const d = el('div', cls); d.innerHTML = htmlStr; mathify(d); return d; };
 function topicTest(t) {
   let best = null; const td = today();
   for (const x of UC.tests) {
@@ -609,230 +619,261 @@ function topicTest(t) {
     const i = t.test.indexOf(x.n); const ok = i >= 0 && !/[IVX]/.test(t.test[i + x.n.length] || '');
     if (ok && (!best || d < best.day)) best = { day: d, n: x.n };
   }
-  if (!best) { const ex = EXAM[t.s]; if (ex && isoToDay(ex) >= td) best = { day: isoToDay(ex), n: 'zkouška' }; }
+  if (!best) { const ex = EXAM[t.s]; if (ex && isoToDay(ex) >= td) best = { day: isoToDay(ex), n: t.s === 'CBV' ? 'Test II' : t.s === 'PCP' ? 'II. test' : 'zkouška' }; }
   return best;
 }
+// fáze podle toho, kolik zbývá do testu → cílová vrstva
+function phase(dd) {
+  if (dd <= 2) return { k: 'zachrana', n: 'poslední chvíle – jen to podstatné ze všech témat', tgt: 1 };
+  if (dd <= 7) return { k: 'dotahovani', n: 'dotahování – testové příklady', tgt: 3 };
+  if (dd <= 21) return { k: 'budovani', n: 'budování – jádro a příklady', tgt: 2 };
+  return { k: 'zaklad', n: 'dost času – nejdřív všechno do šířky, pak do hloubky', tgt: 1 };
+}
+// kolik minut je potřeba / k dispozici do testu předmětu
+function budget(s) {
+  const ts = UT.filter(t => t.s === s && taught(t)); if (!ts.length) return null;
+  const nt = ts.map(topicTest).filter(Boolean).sort((a, b) => a.day - b.day)[0]; if (!nt) return null;
+  const dd = nt.day - today(), ph = phase(dd);
+  let need = 0; for (const t of ts) { const tt = topicTest(t); if (!tt || tt.day !== nt.day) continue; for (let l = lvOf(t); l < ph.tgt; l++) need += STEPMIN[l]; }
+  const active = new Set(UT.filter(t => taught(t) && topicTest(t) && topicTest(t).day - today() <= 21).map(t => t.s)).size || 1;
+  const have = Math.round(Math.max(0, dd) * 6 / 7 * 100 / Math.max(1, active));
+  return { nt, dd, ph, need, have, tight: need > have };
+}
+function target(t) {
+  const ts = topicTest(t); if (!ts) return 2;
+  const b = budget(t.s), dd = ts.day - today(); let tg = phase(dd).tgt;
+  if (b && b.tight) tg = Math.min(tg, Math.max(1, lvOf(t) + 1));     // nestíhá se → do šířky
+  const ss = UT.filter(x => x.s === t.s && taught(x) && stOf(x) !== 'B');
+  if (ss.length && ss.every(x => lvOf(x) >= tg)) tg = Math.min(4, tg + 1);    // všechno na cíli → růst dál
+  return tg;
+}
+const reviewDue = t => { const r = diag[t.id]; return r && r.nx && r.nx <= today() && lvOf(t) > 0; };
+const forgotten = t => { const r = diag[t.id]; return r && r.nx && today() > r.nx + GAP[Math.min(4, lvOf(t))]; };
 function prio(t) {
-  const st = stOf(t); if (st === 'B' || !taught(t)) return -1;
-  const ts = topicTest(t), dd = ts ? ts.day - today() : 60, r = diag[t.id] || {};
-  let p = WEAK[st] / (1 + dd / 7);
-  if (r.nx && r.nx <= today()) p += 0.25 / (1 + dd / 14);
+  if (!taught(t) || stOf(t) === 'B') return -1;
+  const ts = topicTest(t), dd = ts ? ts.day - today() : 60, urg = 1 / (1 + Math.max(0, dd) / 7);
+  const gap = target(t) - lvOf(t);
+  let p = gap > 0 ? gap * urg : 0;
+  if (stOf(t) === 'X') p += 0.3 * urg;
+  if (reviewDue(t)) p += (forgotten(t) ? 0.6 : 0.3) * urg;
+  if (stOf(t) === 0) p += 0.5 * urg;
   return p;
 }
-function saveDiag(tid, rec) { diag[tid] = { ...rec, ts: Date.now() }; ls.set('k_diag', diag); dirty.add('srs_DIAG'); persist(); schedulePush(); }
-function grade2st(gs) {
-  if (gs.includes('B')) return 'B'; if (gs.includes('X')) return 'X';
-  const n = gs.map(g => +g); if (n[0] <= 1) return 1; if (n[0] === 2) return 2;
-  if (n.length < 2) return 3; return n[1] === 3 ? 4 : n[1] === 2 ? 3 : 2;
+// automatický kontext z rozvrhu (Dnes → režim), pokud si ho uživatel v posledních 90 min nezměnil
+function autoCtx() {
+  if (Date.now() - (UCTX.ts || 0) < 90 * 60e3 || !SEM || !SEM.rezim) return UCTX;
+  const now = new Date(), m = now.getHours() * 60 + now.getMinutes(), bl = SEM.rezim[((now.getDay() + 6) % 7) + 1] || [];
+  const b = bl.find(x => mins(x.a) <= m && m < mins(x.b)) || bl.find(x => mins(x.a) > m && mins(x.a) - m <= 20);
+  if (!b) return UCTX;
+  const left = Math.max(5, mins(b.b) - Math.max(m, mins(b.a))), tx = (b.co + ' ' + (b.jak || '')).toLowerCase();
+  const kde = /cesta|vlak|tramvaj/.test(tx) ? 'cesta' : /blok|doma|večer/.test(tx) ? 'doma' : 'skola';
+  const opts = [10, 25, 50, 90]; const min = opts.reduce((a, o) => o <= left ? o : a, 10);
+  return { ...UCTX, kde, min, auto: b.co };
 }
-const lvFromSt = st => ({ X: 0, 1: 0, 2: 1, 3: 2, 4: 3 }[st] ?? 0);
-function nextRev(t, lv) { const ts = topicTest(t); let nx = today() + GAP[Math.min(lv, 4)]; if (ts && nx >= ts.day) nx = Math.max(today() + 1, ts.day - 1); return nx; }
-
-// co dělat na které vrstvě (od nejjednoduššího k nejsložitějšímu), podle místa
-function activity(t, kde) {
-  const lv = lvOf(t), st = stOf(t), list = `${t.id} ${t.n}`;
-  if (st === 0) return { m: 4, v: 'Ověřit', co: 'Rychlá diagnostika: 2 otázky.', kind: 'diag' };
-  if (lv === 0) return { m: 8, v: 'V0', co: 'Smysl tématu v 5 bodech a co budeš umět, pak 2 otázky.', kind: 'learn' };
-  if (lv === 1) return kde === 'doma'
-    ? { m: 25, v: 'V1', co: `List ${list}: sekce 3 Jádro + 1 řešený příklad (sekce 5). Pak 3 otázky.`, kind: 'learn' }
-    : { m: 8, v: 'V1', co: 'Vybavování: 4 otázky z tématu, odpověz nahlas nebo v hlavě, pak zkontroluj.', kind: 'learn' };
-  if (lv === 2) return kde === 'doma'
-    ? { m: 40, v: 'V2', co: `List ${list}: sekce 4 Proč to tak je + sekce 6 Procvič sám (3 příklady na papír). Pak 3 otázky.`, kind: 'learn' }
-    : { m: 8, v: 'V2', co: 'Těžší otázky z tématu, promíchané. Odpověz celou větou, než otočíš.', kind: 'learn' };
-  if (lv === 3) return kde === 'doma'
-    ? { m: 40, v: 'V3', co: `Sbírka 02_PRIKLADY k ${t.id}: 3 příklady z druhé půlky (těžší) + 1 úloha ze starého testu, na čas.`, kind: 'learn' }
-    : { m: 4, v: 'V3', co: 'Krátké opakování: 2 otázky (rozložené opakování drží látku).', kind: 'learn' };
-  return kde === 'doma'
-    ? { m: 45, v: 'V4', co: `Nejtěžší úlohy k ${t.id}: zkouškové příklady (staré písemky, 30_PROCVICOVANI) a otázky z ústní části – vysvětli souvislosti s dalšími tématy předmětu.`, kind: 'learn' }
-    : { m: 4, v: 'V4', co: 'Krátké opakování: 2 otázky.', kind: 'learn' };
+// co konkrétně udělat s tématem (krok učení)
+function stepFor(t, kde, min) {
+  if (stOf(t) === 0) return { k: 'diag', m: 2, lab: 'Ověřit, co víš', why: 'nová látka' };
+  if (reviewDue(t) && lvOf(t) >= target(t)) return { k: 'rev', m: 3, lab: 'Rychlé opakování', why: forgotten(t) ? 'dlouho jsi to neviděl' : 'opakování je na řadě' };
+  const lv = lvOf(t), m = Math.min(min, kde === 'doma' ? STEPMIN[lv] + 5 : 10);
+  return { k: 'learn', lv, m, lab: LVN[lv], why: stOf(t) === 'X' ? 'tady jsi nerozuměl – jdeme od základu' : '' };
 }
-function plan(min, kde) {
-  const cand = UT.filter(t => prio(t) > 0).sort((a, b) => prio(b) - prio(a));
-  const out = []; let left = min;
-  const undiag = UT.filter(t => taught(t) && stOf(t) === 0);
-  if (undiag.length >= 8 && min >= 10) { const m = Math.min(15, Math.max(8, Math.round(min / 3))); out.push({ diag: true, m, n: Math.floor(m / 1.5) }); left -= m; }
-  // málo času do testu → šíře před hloubkou: jen V0/V1 pro co nejvíc témat
+function plan(ctx) {
+  const cand = UT.filter(t => prio(t) > 0).sort((a, b) => prio(b) - prio(a) || lvOf(a) - lvOf(b));
+  const out = []; let left = ctx.min;
   for (const t of cand) {
-    if (left < 4) break; if (undiag.length >= 8 && stOf(t) === 0) continue;
-    let a = activity(t, kde); const ts = topicTest(t), dd = ts ? ts.day - today() : 99;
-    if (dd <= 2 && a.m > 10) a = { m: 8, v: 'V0', co: `Test ${inDays(dd)}: jen to podstatné – smysl tématu, klíčové vzorce, 3 otázky.`, kind: 'learn' };
-    if (a.m > left) { if (a.m > 10 && left >= 8 && kde === 'doma') a = { ...a, m: left, co: a.co + ' (zkrácená verze – kolik stihneš)' }; else continue; }
-    out.push({ t, a, ts }); left -= a.m;
+    if (left < 2 || out.length >= 3) break;
+    const s = stepFor(t, ctx.kde, left); if (s.m > left + 3) continue;
+    out.push({ t, s, ts: topicTest(t) }); left -= s.m;
   }
   return out;
 }
 
-// ----- render
+// ----- obrazovka Učit
 function renderUcit() {
   if (!UC) return;
-  document.querySelectorAll('#uSeg button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.u === USEG)));
-  document.querySelectorAll('section[data-tab="ucit"] > [data-u]').forEach(p => p.hidden = p.dataset.u !== USEG || !!UQ);
-  $('uRun').hidden = !UQ; if (UQ) return drawUQ();
-  if (USEG === 'ted') renderTed(); if (USEG === 'diag') renderDiagIntro(); if (USEG === 'mapa') renderMapa();
-}
-function chipRow(opts, cur, on) {
-  const r = el('div', 'row'); for (const [v, lab] of opts) { const b = el('button', 'chip', lab); b.type = 'button'; b.setAttribute('aria-pressed', String(v === cur)); b.onclick = () => on(v); r.appendChild(b); } return r;
-}
-function renderTed() {
-  const box = $('uTed'); box.textContent = '';
-  const ctx = panel('Kolik máš času a kde jsi?',
-    chipRow([[10, '10 min'], [25, '25 min'], [50, '50 min'], [90, '1,5 h']], UCTX.min, v => { UCTX.min = v; ls.set('k_uctx', UCTX); renderTed(); }),
-    chipRow(Object.entries(KDE), UCTX.kde, v => { UCTX.kde = v; ls.set('k_uctx', UCTX); renderTed(); }));
-  box.appendChild(ctx);
-  const p = plan(UCTX.min, UCTX.kde), pl = panel('Plán na teď'), ul = el('div', 'list');
-  if (!p.length) ul.appendChild(el('div', 'note', 'Nic naléhavého. Dej si opakování z Mapy, nebo odpočívej.'));
-  for (const it of p) {
-    const row = el('div', 'uitem');
-    if (it.diag) {
-      row.append(el('b', null, `Diagnostika · ${it.m} min`), el('span', 'note', `Zjistíme, co umíš: asi ${it.n} témat, nejdřív ta s nejbližším testem.`));
-      const b = el('button', 'primary', 'Začít diagnostiku'); b.type = 'button'; b.onclick = () => startDiag(it.n); row.appendChild(b);
-    } else {
-      const st = stOf(it.t), hd = el('div', 'row');
-      hd.append(tag(it.t.s), el('b', null, it.t.n), el('span', 'chip ' + STC[st], STN[st] || 'neověřeno'), el('span', 'chip', `${it.a.v} · ${it.a.m} min`));
-      row.append(hd, el('span', 'note', (it.ts ? `${it.ts.n} ${inDays(it.ts.day - today())} · ` : '') + it.a.co));
-      const b = el('button', 'ghost', it.a.kind === 'diag' ? 'Ověřit' : 'Začít'); b.type = 'button';
-      b.onclick = () => it.a.kind === 'diag' ? startDiag(1, [it.t]) : startLearn(it.t, it.a); row.appendChild(b);
+  const box = $('uMain'); box.textContent = '';
+  if (UQ) return drawUQ();
+  const ctx = autoCtx(), p = plan(ctx);
+  // 1) nejbližší test jednou větou
+  const near = SUBJS.map(s => ({ s, b: budget(s) })).filter(x => x.b).sort((a, b) => a.b.dd - b.b.dd)[0];
+  if (near) box.appendChild(el('div', 'uhead', `${SUBJN[near.s]} · ${near.b.nt.n} ${inDays(near.b.dd)} — ${near.b.tight ? 'času je málo, jedeme do šířky' : near.b.ph.n}`));
+  // 2) kontext (kde, kolik času) – jedna řádka, rozbalí se na výběr
+  const cx = el('details', 'uctx'); const sm = el('summary'); sm.textContent = `${KDE[ctx.kde]} · ${ctx.min} min${ctx.auto ? ' · podle rozvrhu' : ''} ▾`; cx.appendChild(sm);
+  const pick = (opts, cur, on) => { const r = el('div', 'row'); for (const [v, lab] of opts) { const b = el('button', 'chip', lab); b.type = 'button'; b.setAttribute('aria-pressed', String(v === cur)); b.onclick = () => on(v); r.appendChild(b); } return r; };
+  const setCtx = o => { UCTX = { ...UCTX, ...o, ts: Date.now() }; delete UCTX.auto; ls.set('k_uctx', UCTX); renderUcit(); };
+  cx.append(pick([[10, '10 min'], [25, '25 min'], [50, '50 min'], [90, '1,5 h']], ctx.min, v => setCtx({ min: v, kde: ctx.kde })),
+    pick(Object.entries(KDE), ctx.kde, v => setCtx({ kde: v, min: ctx.min })));
+  box.appendChild(cx);
+  // 3) jeden hlavní krok
+  if (!p.length) { box.appendChild(panel(null, el('p', null, 'Teď nic nehoří. Odpočívej, nebo si v Mapě vyber téma, které tě zajímá.'))); }
+  else {
+    const it = p[0], c = el('div', 'unow');
+    const top = el('div', 'row'); top.append(tag(it.t.s), el('span', 'note', `${it.s.m} min${it.ts ? ` · ${it.ts.n} ${inDays(it.ts.day - today())}` : ''}`));
+    c.append(top, el('h2', null, it.t.n), el('div', 'ustep', it.s.lab));
+    if (it.s.why) c.appendChild(el('div', 'note', it.s.why));
+    c.appendChild(ladder(it.t));
+    const b = el('button', 'primary', 'Začít'); b.type = 'button'; b.onclick = () => go2(it, ctx); c.appendChild(b);
+    box.appendChild(c);
+    if (p.length > 1) {
+      const pl = el('div', 'list unext'); pl.appendChild(el('div', 'note', 'Potom'));
+      for (const x of p.slice(1)) { const r = el('button', 'urow'); r.type = 'button'; r.append(el('i', 'dot ' + STC[stOf(x.t)]), el('span', 't', `${x.t.n} – ${x.s.lab.toLowerCase()}`), el('span', 'note', x.s.m + ' min')); r.onclick = () => go2(x, ctx); pl.appendChild(r); }
+      box.appendChild(pl);
     }
-    ul.appendChild(row);
   }
-  pl.appendChild(ul);
-  pl.appendChild(el('div', 'note', 'Každé téma začíná nejjednodušší vrstvou (V0 = smysl a jádro na 5 minut). Když dvakrát v různé dny odpovíš správně, posuneš se o vrstvu výš – podrobnější výklad, příklady, těžší úlohy.'));
-  box.appendChild(pl);
+  // 4) nová látka k ověření (jen když nějaká je)
+  const nd = UT.filter(t => taught(t) && stOf(t) === 0);
+  if (nd.length) { const b = el('button', 'ghost uwide', `Nová látka k ověření: ${nd.length} ${nd.length === 1 ? 'téma' : nd.length < 5 ? 'témata' : 'témat'} · ~${nd.length * 2} min`); b.type = 'button'; b.onclick = () => startDiag(nd.length); box.appendChild(b); }
 }
-function renderDiagIntro() {
-  const box = $('uDiag'); box.textContent = '';
-  const tt = UT.filter(taught), undone = tt.filter(t => stOf(t) === 0);
-  const p = panel('Diagnostika',
-    el('p', null, `Probrané látky je ${tt.length} témat, neověřeno ${undone.length}. Každé téma = 1–2 otázky (asi 1 minuta). Začíná se předmětem s nejbližším testem. Skončit můžeš kdykoli, pokračuje se tam, kde jsi přestal.`),
-    el('p', 'note', 'Buď přísný: „Věděl jsem“ jen když bys to napsal do testu. „Nerozumím otázce“ je cenná informace – přesně tam začneme vysvětlovat od základu.'));
-  const r = el('div', 'row');
-  for (const n of [10, 25, undone.length]) { if (!n) continue; const b = el('button', n === 10 ? 'primary' : 'ghost', n === undone.length ? `Všechno (${n})` : `${n} témat`); b.type = 'button'; b.disabled = !undone.length; b.onclick = () => startDiag(n); r.appendChild(b); }
-  p.appendChild(r);
-  if (!undone.length) p.appendChild(el('div', 'note', 'Všechno probrané máš ověřené. Znovu ověřit téma můžeš v Mapě.'));
-  box.appendChild(p);
+function go2(it, ctx) { if (it.s.k === 'diag') startDiag(1, [it.t]); else if (it.s.k === 'rev') startLearn(it.t, ctx, true); else startLearn(it.t, ctx); }
+// žebřík vrstev (animovaný ukazatel, kde v tématu jsi)
+function ladder(t) {
+  const d = el('div', 'ladder'), lv = lvOf(t), st = stOf(t);
+  for (let i = 0; i < 5; i++) { const s = el('span', i < lv ? 'on' : i === lv && st !== 0 ? 'cur' : ''); s.title = LVN[i]; d.appendChild(s); }
+  return d;
 }
+
+// ----- MAPA
 function renderMapa() {
-  const box = $('uMapa'); box.textContent = '';
-  const tot = {}; for (const t of UT.filter(taught)) { const s = stOf(t); tot[s] = (tot[s] || 0) + 1; }
-  const k = el('div', 'kpis');
-  for (const [s, lab] of [[4, 'umím'], [3, 'skoro'], [2, 'zhruba'], ['1X', 'neumím / nerozumím']]) {
-    const n = s === '1X' ? (tot[1] || 0) + (tot.X || 0) : tot[s] || 0; const d = el('div'); d.append(el('b', 'num', String(n)), el('span', null, lab)); k.appendChild(d);
-  }
-  const exp = el('button', 'primary', 'Poslat výsledky Claudovi'); exp.type = 'button'; exp.onclick = exportDiag;
-  box.appendChild(panel(null, k, exp, el('div', 'note', `Neověřeno: ${tot[0] || 0} · nebráno: ${tot.B || 0} · látka, která ještě nebyla, se nepočítá.`)));
+  if (!UC) return; const box = $('mMain'); box.textContent = '';
+  if (UOPEN && UBY[UOPEN]) return topicSheet(UBY[UOPEN]);
+  const tt = UT.filter(t => taught(t) && stOf(t) !== 'B'), cnt = s => tt.filter(t => stOf(t) === s || (s === 1 && stOf(t) === 'X')).length;
+  box.appendChild(panel(null, el('p', 'ubig', `Umíš ${cnt(4) + cnt(3)} z ${tt.length} probraných témat`),
+    el('div', 'note', `zhruba ${cnt(2)} · zatím ne ${cnt(1)} · neověřeno ${cnt(0)}`)));
   for (const s of SUBJS) {
     const ts = UT.filter(t => t.s === s); if (!ts.length) continue;
+    const b = budget(s), det = el('details', 'panel usubj'); const sum = el('summary');
+    const bar = el('div', 'sbar'); const tk = ts.filter(taught);
+    for (const k of [4, 3, 2, 1, 'X', 0]) { const n = tk.filter(t => stOf(t) === k).length; if (n) { const i = el('i', STC[k]); i.style.flex = n; bar.appendChild(i); } }
+    sum.append(el('b', null, SUBJN[s]), el('span', 'note', b ? `${b.nt.n} ${inDays(b.dd)}` : ''), bar);
+    det.appendChild(sum);
+    if (b) det.appendChild(el('div', 'note', b.tight ? `Do testu potřebuješ asi ${Math.round(b.need / 60)} h, máš asi ${Math.round(b.have / 60)} h – plán proto jede do šířky (u každého tématu jen to podstatné).` : `Do testu potřebuješ asi ${Math.max(1, Math.round(b.need / 60))} h z asi ${Math.round(b.have / 60)} h, co máš – stíháš.`));
     const ul = el('div', 'list');
     for (const t of ts) {
       const st = stOf(t), row = el('button', 'urow'); row.type = 'button';
-      row.append(el('i', 'dot ' + (taught(t) ? STC[st] : 'u-f')), el('span', 't', t.n),
-        el('span', 'note', taught(t) ? (st ? `${STN[st]} · V${lvOf(t)}` : 'neověřeno') : 'teprve bude ' + fmtD(isoToDay(t.d))));
-      row.onclick = () => topicSheet(t); ul.appendChild(row);
+      row.append(el('i', 'dot ' + (taught(t) ? STC[st] : 'u-f')), el('span', 't', t.n), el('span', 'note', taught(t) ? (st ? STN[st] : 'neověřeno') : fmtD(isoToDay(t.d))));
+      row.onclick = () => { UOPEN = t.id; renderMapa(); window.scrollTo({ top: 0 }); }; ul.appendChild(row);
     }
-    const tsx = UT.find(t => t.s === s && topicTest(t)), nt = tsx ? topicTest(tsx) : null;
-    box.appendChild(panel(`${SUBJN[s]}${nt ? ` · ${nt.n} ${inDays(nt.day - today())}` : ''}`, ul));
+    det.appendChild(ul); box.appendChild(det);
   }
+  const ex = el('button', 'link', 'Poslat výsledky Claudovi'); ex.type = 'button'; ex.onclick = exportDiag; box.appendChild(ex);
 }
-function topicSheet(t) {
-  const box = $('uMapa'); box.textContent = ''; window.scrollTo({ top: 0 });
-  const back = el('button', 'ghost', '‹ Mapa'); back.type = 'button'; back.onclick = renderMapa;
-  const p = panel(t.n, el('div', 'note', `${SUBJN[t.s]} · výklad ${t.d ? fmtD(isoToDay(t.d)) : '–'} · ${t.test}`));
-  if (t.v0.length) { const ul = el('ul', 'v0'); t.v0.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Smysl tématu (V0)'), ul); }
-  if (t.cil.length) { const ul = el('ul', 'v0'); t.cil.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Co budeš umět'), ul); }
+async function loadObs(tid) { if (OBS[tid]) return OBS[tid]; const r = await fetch(`obsah/${tid}.json`); OBS[tid] = await r.json(); return OBS[tid]; }
+async function topicSheet(t) {
+  const box = $('mMain'); box.textContent = '';
+  const back = el('button', 'ghost', '‹ Mapa'); back.type = 'button'; back.onclick = () => { UOPEN = null; renderMapa(); };
+  const hd = panel(null, el('h2', null, t.n), el('div', 'note', `${SUBJN[t.s]} · ${STN[stOf(t)]} · ${LVN[lvOf(t)]}`), ladder(t));
   const r = el('div', 'row');
-  const b1 = el('button', 'primary', 'Učit teď'); b1.type = 'button'; b1.onclick = () => startLearn(t, activity(t, UCTX.kde));
-  const b2 = el('button', 'ghost', 'Znovu ověřit'); b2.type = 'button'; b2.onclick = () => startDiag(1, [t]);
-  r.append(b1, b2); p.appendChild(r);
-  box.append(back, p);
+  const b1 = el('button', 'primary', 'Učit teď'); b1.type = 'button'; b1.onclick = () => { go('ucit'); startLearn(t, autoCtx()); };
+  const b2 = el('button', 'ghost', 'Ověřit znovu'); b2.type = 'button'; b2.onclick = () => { go('ucit'); startDiag(1, [t]); };
+  r.append(b1, b2); hd.appendChild(r); box.append(back, hd);
+  const o = await loadObs(t.id);
+  const secs = [['v0', 'O čem to je'], ['cil', 'Co budeš umět'], ['jadro', 'Jádro'], ['proc', 'Proč to tak je'], ['rp', 'Řešené příklady'], ['chyby', 'Časté chyby'], ['souv', 'Souvislosti']];
+  for (const [k, n] of secs) if (o[k]) { const d = el('details', 'panel fold'); const s = el('summary'); s.appendChild(el('h3', null, n)); d.appendChild(s); d.appendChild(H('ucont', o[k])); box.appendChild(d); }
 }
 
-// ----- běh: diagnostika i učení sdílí jednu obrazovku otázek
+// ----- běh: diagnostika (2 otázky na téma) a učební blok (kroky)
 function startDiag(n, only) {
   const list = only || UT.filter(t => taught(t) && stOf(t) === 0).sort((a, b) => ((topicTest(a) || {}).day || 1e9) - ((topicTest(b) || {}).day || 1e9) || a.d.localeCompare(b.d)).slice(0, n);
   if (!list.length) return toast('Není co ověřovat');
   UQ = { mode: 'diag', topics: list, ti: 0, step: 0, gs: [], shown: false, n: list.length };
-  renderUcit(); window.scrollTo({ top: 0 });
+  if (TAB !== 'ucit') go('ucit'); else renderUcit(); window.scrollTo({ top: 0 });
 }
-function startLearn(t, a) {
-  const lv = lvOf(t), k = lv >= 3 ? 2 : lv === 0 ? 2 : lv === 1 ? 4 : 3;
-  const h = new Set(((diag[t.id] || {}).h || []).filter(x => x[2] === 3 && x[0] >= today() - 1).map(x => x[1]));
-  let qs = t.qs.filter(q => !h.has(q.id));
-  if (lv >= 2) qs = qs.slice().reverse(); // těžší otázky bývají na konci sekce
-  UQ = { mode: 'learn', t, a, qs: qs.slice(0, k), qi: -1, gs: [], shown: false };
-  renderUcit(); window.scrollTo({ top: 0 });
+async function startLearn(t, ctx, review) {
+  const o = await loadObs(t.id), lv = lvOf(t), doma = ctx.kde === 'doma', short = ctx.min <= 10;
+  const recent = new Set(((diag[t.id] || {}).h || []).filter(x => x[2] === 3 && x[0] >= today() - 1).map(x => x[1]));
+  let qs = t.qs.filter(q => !recent.has(q.id)); if (lv >= 2) qs = qs.slice().reverse();
+  const P = n => (o.lv[String(n)] || []);
+  const steps = [];
+  const C = (title, k) => o[k] && steps.push({ k: 'c', title, html: o[k] });
+  const Q = n => qs.slice(0, n).forEach(q => steps.push({ k: 'q', q }));
+  const X = (n, cnt) => P(n).slice(0, cnt).forEach(p => steps.push({ k: 'p', p, lv: n }));
+  if (review) Q(2);
+  else if (lv === 0) { C('O čem to je', 'v0'); if (!short) C('Co budeš umět', 'cil'); Q(2); }
+  else if (lv === 1) { if (!short && o.pre) steps.push({ k: 'c', title: 'Nejdřív zkus odpovědět v duchu', html: o.pre, pre: true }); C('Jádro', 'jadro'); if (doma && !short) X(1, 2); Q(short ? 2 : 3); }
+  else if (lv === 2) { if (!short) C('Proč to tak je', 'proc'); if (doma) { C('Řešené příklady', 'rp'); X(2, short ? 1 : 3); } Q(short ? 2 : 3); }
+  else if (lv === 3) { if (doma && P(3).length) X(3, short ? 1 : 3); else C('Časté chyby', 'chyby'); Q(short ? 2 : 4); }
+  else { if (doma && P(4).length) X(4, short ? 1 : 2); else C('Souvislosti', 'souv'); Q(short ? 2 : 4); }
+  if (!steps.length) Q(3);
+  UQ = { mode: 'learn', t, lv, review, steps, i: 0, gs: [], shown: false, pcp: t.s === 'PCP' && doma && lv >= 1 };
+  if (TAB !== 'ucit') go('ucit'); else renderUcit(); window.scrollTo({ top: 0 });
 }
-function diagQ(t, step) { return step === 0 ? t.qs[0] : t.qs[Math.min(t.qs.length - 1, 3)]; }
+const diagQ = (t, step) => step === 0 ? t.qs[0] : t.qs[Math.min(t.qs.length - 1, 3)];
+function topBar(label, frac) {
+  const r = el('div', 'stop'); const end = el('button', 'ghost', 'Konec'); end.type = 'button'; end.onclick = () => { UQ = null; renderUcit(); syncNow(false); };
+  const pg = el('div', 'prog'); const i = el('i'); i.style.width = Math.round(frac * 100) + '%'; pg.appendChild(i);
+  r.append(end, pg, el('span', 'note', label)); return r;
+}
+function btns(list) { const g = el('div', 'ugr'); for (const [lab, cls, fn] of list) { const b = el('button', cls, lab); b.type = 'button'; b.onclick = fn; g.appendChild(b); } return g; }
 function drawUQ() {
-  const box = $('uRun'); box.textContent = '';
-  const stop = el('div', 'row'); const end = el('button', 'ghost', 'Konec'); end.type = 'button'; end.onclick = () => { UQ = null; renderUcit(); syncNow(false); };
-  stop.appendChild(end);
+  const box = $('uMain'); box.textContent = '';
   if (UQ.mode === 'diag') {
-    const t = UQ.topics[UQ.ti], q = diagQ(t, UQ.step), ts = topicTest(t);
-    stop.appendChild(el('span', 'note', `téma ${UQ.ti + 1} / ${UQ.n} · skončit můžeš kdykoli`)); box.appendChild(stop);
-    const c = el('div', 'card'); c.append(el('div', 'meta', `${SUBJN[t.s]} · ${t.n}${ts ? ` · ${ts.n} ${inDays(ts.day - today())}` : ''}`), el('div', 'q', q.q));
-    if (UQ.shown) c.appendChild(el('div', 'a', q.a));
+    const t = UQ.topics[UQ.ti], q = diagQ(t, UQ.step);
+    box.appendChild(topBar(`${UQ.ti + 1}/${UQ.n}`, UQ.ti / UQ.n));
+    const c = el('div', 'card ucard'); c.append(el('div', 'meta', `${SUBJN[t.s]} · ${t.n}`), H('q', q.q)); if (UQ.shown) c.appendChild(H('a', q.a)); box.appendChild(c);
+    box.appendChild(!UQ.shown
+      ? btns([['Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nevím', 'ghost', () => diagGrade(1, q)], ['Nerozumím otázce', 'ghost', () => diagGrade('X', q)], ['Ještě jsme nebrali', 'ghost', () => diagGrade('B', q)]])
+      : btns([['Věděl jsem', 'g3', () => diagGrade(3, q)], ['Zhruba', 'g2', () => diagGrade(2, q)], ['Nevěděl', 'g1', () => diagGrade(1, q)]]));
+    return;
+  }
+  const t = UQ.t, s = UQ.steps[UQ.i];
+  box.appendChild(topBar(t.n, UQ.i / UQ.steps.length));
+  if (UQ.pcp && UQ.i === 0) box.appendChild(el('div', 'uhint', 'MATLAB piš sám, bez Copilota. Copilota použij až na kontrolu hotového kódu.'));
+  const next = () => { UQ.i++; UQ.shown = false; if (UQ.i >= UQ.steps.length) return learnDone(); drawUQ(); window.scrollTo({ top: 0 }); };
+  if (s.k === 'c') {
+    const c = el('div', 'card ucard ucontent'); c.append(el('div', 'meta', s.title), H('ucont', s.html)); box.appendChild(c);
+    box.appendChild(btns([[s.pre ? 'Hotovo, teď výklad' : 'Rozumím, dál', 'primary', next]])); return;
+  }
+  if (s.k === 'p') {
+    const c = el('div', 'card ucard'); c.append(el('div', 'meta', `Příklad ${s.p.n} · spočítej na papír`), H('q', s.p.z));
+    if (UQ.shown) { c.append(el('div', 'meta', 'Výsledek'), H('a', s.p.r || '—')); if (UQ.shown === 'sol' && s.p.s) c.append(el('div', 'meta', 'Řešení krok za krokem'), H('ucont', s.p.s)); }
     box.appendChild(c);
-    const g = el('div', 'ugr');
-    const btn = (lab, cls, fn) => { const b = el('button', cls, lab); b.type = 'button'; b.onclick = fn; g.appendChild(b); };
-    if (!UQ.shown) {
-      btn('Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); });
-      btn('Nevím vůbec', 'ghost', () => diagGrade(1, q)); btn('Nerozumím otázce', 'ghost', () => diagGrade('X', q)); btn('Tohle jsme nebrali', 'ghost', () => diagGrade('B', q));
-    } else { btn('Věděl jsem', 'g3', () => diagGrade(3, q)); btn('Zhruba', 'g2', () => diagGrade(2, q)); btn('Nevěděl', 'g1', () => diagGrade(1, q)); }
-    box.appendChild(g); return;
+    const id = `p:${t.id}:${s.p.n}`;
+    box.appendChild(!UQ.shown ? btns([['Ukázat výsledek', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nevím, jak začít', 'ghost', () => { UQ.shown = 'sol'; rec(t, id, 1); UQ.gs.push(1); drawUQ(); }]])
+      : UQ.shown === 'sol' ? btns([['Projel jsem řešení, dál', 'primary', next]])
+        : btns([['Vyšlo', 'g3', () => { rec(t, id, 3); UQ.gs.push(3); next(); }], ['Nevyšlo – ukaž řešení', 'g1', () => { rec(t, id, 1); UQ.gs.push(1); UQ.shown = 'sol'; drawUQ(); }]]));
+    return;
   }
-  const t = UQ.t; stop.appendChild(el('span', 'note', `${t.n} · ${UQ.a.v}`)); box.appendChild(stop);
-  if (UQ.qi < 0) {
-    const p = panel(t.n, el('div', 'note', UQ.a.co));
-    if (UQ.a.v === 'V0' || lvOf(t) === 0) {
-      if (t.v0.length) { const ul = el('ul', 'v0'); t.v0.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Smysl tématu'), ul); }
-      if (t.cil.length) { const ul = el('ul', 'v0'); t.cil.forEach(x => ul.appendChild(el('li', null, x))); p.append(el('h3', null, 'Co budeš umět'), ul); }
-    }
-    const b = el('button', 'primary', UQ.qs.length ? `Hotovo – teď ${UQ.qs.length} otázky` : 'Hotovo'); b.type = 'button';
-    b.onclick = () => { if (!UQ.qs.length) return learnDone(); UQ.qi = 0; UQ.shown = false; drawUQ(); };
-    p.appendChild(b); box.appendChild(p); return;
-  }
-  const q = UQ.qs[UQ.qi], c = el('div', 'card');
-  c.append(el('div', 'meta', `otázka ${UQ.qi + 1} / ${UQ.qs.length} · nejdřív odpověz sám, pak otoč`), el('div', 'q', q.q));
-  if (UQ.shown) c.appendChild(el('div', 'a', q.a));
-  box.appendChild(c);
-  const g = el('div', 'ugr'), btn = (lab, cls, fn) => { const b = el('button', cls, lab); b.type = 'button'; b.onclick = fn; g.appendChild(b); };
-  if (!UQ.shown) { btn('Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }); btn('Nerozumím', 'ghost', () => learnGrade(0, q)); }
-  else { btn('Věděl jsem', 'g3', () => learnGrade(3, q)); btn('Zhruba', 'g2', () => learnGrade(2, q)); btn('Nevěděl', 'g1', () => learnGrade(1, q)); }
-  box.appendChild(g);
+  const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', 'Odpověz sám, pak otoč'), H('q', q.q)); if (UQ.shown) c.appendChild(H('a', q.a)); box.appendChild(c);
+  const g = gr => { rec(t, q.id, gr); UQ.gs.push(gr); next(); };
+  box.appendChild(!UQ.shown ? btns([['Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nerozumím', 'ghost', () => g(0)]])
+    : btns([['Věděl jsem', 'g3', () => g(3)], ['Zhruba', 'g2', () => g(2)], ['Nevěděl', 'g1', () => g(1)]]));
 }
+function saveDiag(tid, r) { diag[tid] = { ...r, ts: Date.now() }; ls.set('k_diag', diag); dirty.add('srs_DIAG'); persist(); schedulePush(); }
+function rec(t, id, g) { const r = diag[t.id] || { h: [] }; saveDiag(t.id, { ...r, h: [...(r.h || []), [today(), id, g]].slice(-60) }); }
+function grade2st(gs) {
+  if (gs.includes('B')) return 'B'; if (gs.includes('X')) return 'X';
+  const n = gs.map(Number); if (n[0] <= 1) return 1; if (n[0] === 2) return 2;
+  if (n.length < 2) return 3; return n[1] === 3 ? 4 : n[1] === 2 ? 3 : 2;
+}
+function nextRev(t, lv) { const ts = topicTest(t); let nx = today() + GAP[Math.min(lv, 4)]; if (ts && nx >= ts.day) nx = Math.max(today() + 1, ts.day - 1); return nx; }
 function diagGrade(g, q) {
-  const t = UQ.topics[UQ.ti]; UQ.gs.push(g);
-  const r = diag[t.id] || { h: [] }; r.h = [...(r.h || []), [today(), q.id, g === 'X' ? 0 : g === 'B' ? -1 : g]].slice(-40);
-  const goOn = UQ.step === 0 && g === 3 && t.qs.length > 1;
-  if (goOn) { saveDiag(t.id, r); UQ.step = 1; UQ.shown = false; return drawUQ(); }
-  const st = grade2st(UQ.gs.map(String)); const lv = lvFromSt(st);
-  saveDiag(t.id, { ...r, st: st === 'B' || st === 'X' ? st : +st, lv, nx: st === 'B' ? 0 : today() + (lv >= 3 ? 3 : 1), up: today() });
+  const t = UQ.topics[UQ.ti]; UQ.gs.push(String(g));
+  const r = diag[t.id] || { h: [] }; r.h = [...(r.h || []), [today(), q.id, g === 'X' ? 0 : g === 'B' ? -1 : g]].slice(-60);
+  if (UQ.step === 0 && g === 3 && t.qs.length > 1) { saveDiag(t.id, r); UQ.step = 1; UQ.shown = false; return drawUQ(); }
+  const st = grade2st(UQ.gs), lv = { X: 0, 1: 0, 2: 1, 3: 2, 4: 3 }[st] ?? 0;
+  saveDiag(t.id, { ...r, st: st === 'B' || st === 'X' ? st : +st, lv: Math.max(lv, Math.min(lvOf(t), lv + 1)), nx: st === 'B' ? 0 : today() + 1, up: today() });
   UQ.ti++; UQ.step = 0; UQ.gs = []; UQ.shown = false;
-  if (UQ.ti >= UQ.topics.length) { const n = UQ.n; UQ = null; toast(`Hotovo: ${n} témat ověřeno`); USEG = 'mapa'; ls.set('k_useg', USEG); renderUcit(); syncNow(false); return; }
+  if (UQ.ti >= UQ.topics.length) { const n = UQ.n; UQ = null; toast(`Ověřeno: ${n} ${n === 1 ? 'téma' : 'témat'}`); renderUcit(); syncNow(false); return; }
   drawUQ();
-}
-function learnGrade(g, q) {
-  UQ.gs.push(g); const t = UQ.t, r = diag[t.id] || { h: [] };
-  r.h = [...(r.h || []), [today(), q.id, g]].slice(-40); saveDiag(t.id, r);
-  UQ.qi++; UQ.shown = false; if (UQ.qi >= UQ.qs.length) return learnDone(); drawUQ();
 }
 function learnDone() {
   const t = UQ.t, r = { ...(diag[t.id] || { h: [] }) }, gs = UQ.gs, ok = gs.filter(g => g === 3).length, bad = gs.filter(g => g <= 1).length;
   let lv = r.lv || 0, msg;
-  if (gs.length && ok >= Math.ceil(gs.length * 2 / 3) && r.up !== today()) { lv = Math.min(4, lv + 1); r.up = today(); msg = `Postup na V${lv}. Příště podrobněji.`; }
-  else if (gs.length && ok >= Math.ceil(gs.length * 2 / 3)) msg = 'Správně. Další vrstva až v jiný den – rozložené opakování drží líp.';
-  else if (bad > ok) { lv = Math.max(0, lv - 1); msg = 'Zatím to nesedí – příště jednodušší vrstva a víc vysvětlení.'; }
-  else msg = 'Zhruba. Zopakujeme zítra.';
-  const st = r.st === 'X' && ok ? 1 : r.st;
-  const nst = lv >= 4 ? 4 : lv === 3 ? Math.max(3, +st || 0) : lv === 2 ? 3 : lv === 1 ? 2 : (st === 'X' && !ok ? 'X' : 1);
-  saveDiag(t.id, { ...r, lv, st: nst, nx: nextRev(t, lv) });
+  const pass = gs.length ? ok >= Math.ceil(gs.length * 2 / 3) : true;
+  if (UQ.review) { if (bad > ok) { lv = Math.max(0, lv - 1); msg = 'Trochu se to vytratilo – vrátíme se o krok.'; } else msg = 'Pořád to drží.'; }
+  else if (pass && r.up !== today()) { lv = Math.min(4, lv + 1); r.up = today(); msg = lv === 4 ? 'Výborně, téma umíš.' : `Posun: ${LVN[lv].toLowerCase()}.`; }
+  else if (pass) msg = 'Správně. Další krok až zítra – přes noc se to usadí.';
+  else if (bad > ok) { lv = Math.max(0, lv - 1); msg = 'Zatím to nesedí – příště jednodušeji a s víc vysvětlením.'; }
+  else msg = 'Napůl. Zopakujeme brzy.';
+  const st = lv >= 4 ? 4 : lv === 3 ? 4 : lv === 2 ? 3 : lv === 1 ? 2 : (r.st === 'X' && !ok ? 'X' : 1);
+  saveDiag(t.id, { ...r, lv, st, nx: nextRev(t, lv) });
   UQ = null; toast(msg); renderUcit(); syncNow(false);
 }
 
 // export výsledků jako text (pro vložení do chatu, když sync neběží)
 async function exportDiag() {
   const L = [`DIAG ${dayIso(today())}`]; const qmap = {};
-  for (const t of UT) for (const q of t.qs) qmap[q.id] = q.q;
+  for (const t of UT) for (const q of t.qs) qmap[q.id] = q.q.replace(/<span class="math[^"]*" data-tex="([^"]*)"><\/span>/g, '$$$1$$').replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'").replace(/&amp;/g, '&');
   for (const t of UT) {
     const r = diag[t.id]; if (!r) continue;
     const bad = (r.h || []).filter(x => x[2] <= 1 && x[2] >= 0).map(x => (x[2] === 0 ? '?' : '-') + (qmap[x[1]] || x[1]).slice(0, 70));
@@ -841,12 +882,11 @@ async function exportDiag() {
   const txt = L.join('\n');
   try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch { /* zrušeno */ }
   try { await navigator.clipboard.writeText(txt); toast('Zkopírováno – vlož to Claudovi do chatu'); }
-  catch { const ta = el('textarea'); ta.value = txt; ta.style.width = '100%'; ta.rows = 8; $('uMapa').prepend(ta); ta.select(); toast('Označ a zkopíruj text nahoře'); }
+  catch { const ta = el('textarea'); ta.value = txt; ta.style.width = '100%'; ta.rows = 8; $('mMain').prepend(ta); ta.select(); toast('Označ a zkopíruj text nahoře'); }
 }
 
 // ---------- ovládání
-document.querySelectorAll('nav.dock button, button.link[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
-document.querySelectorAll('#uSeg button').forEach(b => b.onclick = () => { USEG = b.dataset.u; ls.set('k_useg', USEG); UQ = null; renderUcit(); });
+document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
 document.querySelectorAll('#kSeg button').forEach(b => b.onclick = () => { KSEG = b.dataset.k; ls.set('k_seg', KSEG); renderKarticky(); });
 $('startAll').onclick = () => startSession(null, false, 'Vše na dnes');
 $('back').onclick = endSession; $('undo').onclick = undo; $('card').onclick = reveal;
@@ -923,6 +963,6 @@ Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then
   const tm = new Map();
   for (const c of CARDS) { if (!tm.has(c.t)) tm.set(c.t, { t: c.t, tn: c.tn, s: c.s, w: c.w }); else tm.get(c.t).w = Math.min(tm.get(c.t).w, c.w); }
   TOPICS = [...tm.values()].sort((a, b) => a.s.localeCompare(b.s) || a.w - b.w || a.t.localeCompare(b.t));
-  const t = location.hash.slice(1); go(TABS.includes(t) ? t : 'dnes');
+  const t = location.hash.slice(1); go(TABS.includes(t) ? t : 'ucit');
   syncNow(false);
 }).catch(() => { document.querySelector('main').prepend(el('div', 'panel note', 'Data se nepodařilo načíst. Napoprvé je potřeba internet, pak už appka jde offline.')); syncLabel('offline'); });

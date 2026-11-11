@@ -1,6 +1,6 @@
 // Service worker: appka funguje offline. Při změně souborů zvyš VERSION (dělá to karticky_deploy.py).
-const VERSION = 'v5';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/app.js', 'cards.json', 'semestr.json', 'uceni.json',
+const VERSION = 'v6';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'css/app.css', 'js/app.js', 'cards.json', 'semestr.json', 'uceni.json', 'vendor/katex/katex.min.js', 'vendor/katex/katex.min.css', 'vendor/katex/mhchem.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const SHELL_CACHE = `shell-${VERSION}`;
 const FONT_CACHE = 'fonts';
@@ -34,6 +34,12 @@ self.addEventListener('fetch', e => {
   }
 
   if (url.origin === location.origin) {
-    e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request)));
+    // obsah témat, obrázky a fonty KaTeXu: z cache, jinak ze sítě a uložit (pak fungují i offline)
+    const rt = /\/(obsah|img|vendor)\//.test(url.pathname);
+    e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => {
+      const net = fetch(e.request).then(r => { if (rt && r.ok) { const cp = r.clone(); caches.open('obsah').then(c => c.put(e.request, cp)); } return r; });
+      if (hit && rt) net.catch(() => null);   // na pozadí obnovit, co je v cache
+      return hit || net;
+    }));
   }
 });

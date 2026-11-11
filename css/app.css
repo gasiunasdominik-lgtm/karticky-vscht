@@ -174,20 +174,65 @@ details.fold summary h2,details.fold summary h3{display:inline}
 .tahak ol,.tahak ul{margin:0;padding-left:18px;display:grid;gap:4px}
 .tahak code{font:500 12px var(--f-num);overflow-wrap:anywhere}
 
-/* ----- Učit */
-.uitem{display:grid;gap:6px;padding:12px 2px;border-top:1px solid var(--line)}
-.uitem:first-child{border-top:0}
-.uitem > button{justify-self:start}
-.urow{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);padding:10px 2px;color:var(--ink);font:inherit}
+/* ----- Učit (jeden krok, málo šumu) */
+@keyframes uin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ugrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes upulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 0%,transparent)}}
+.uhead{font-size:14px;color:var(--muted);padding:0 2px}
+.uctx{font-size:14px}
+.uctx summary{cursor:pointer;color:var(--ink);font-weight:500;list-style:none;padding:4px 2px}
+.uctx summary::-webkit-details-marker{display:none}
+.uctx .row{margin-top:8px}
+.unow{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:grid;gap:10px;animation:uin .35s ease both}
+.unow h2{margin:0;font:600 22px/1.25 var(--f-serif,inherit)}
+.ustep{font-weight:600;color:var(--accent)}
+.unow .primary{margin-top:6px}
+.unext{border-top:0}
+.unext > .note{padding:4px 2px}
+.uwide{width:100%;text-align:left}
+.ladder{display:flex;gap:5px}
+.ladder span{flex:1;height:6px;border-radius:3px;background:var(--chip);transform-origin:left}
+.ladder span.on{background:var(--good);animation:ugrow .5s ease both}
+.ladder span.cur{background:var(--accent);animation:upulse 1.8s ease-in-out infinite}
+.urow{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);padding:11px 2px;color:var(--ink);font:inherit;width:100%}
 .urow:first-child{border-top:0}
 .urow .t{overflow-wrap:anywhere}
 .dot{width:10px;height:10px;border-radius:50%;display:block}
 .u-0{background:var(--chip)} .u-f{background:transparent;border:1px dashed var(--muted)}
-.u-b{background:#9aa0a6;color:#fff} .u-x{background:#7b3fb3;color:#fff} .u-1{background:#c0392b;color:#fff}
-.u-2{background:#b87503;color:#fff} .u-3{background:#5f8f22;color:#fff} .u-4{background:#2e7d32;color:#fff}
-.chip.u-0{color:var(--muted)}
+.u-b{background:#9aa0a6} .u-x{background:#7b3fb3} .u-1{background:#c0392b} .u-2{background:#b87503} .u-3{background:#5f8f22} .u-4{background:#2e7d32}
+.ubig{font:600 20px/1.3 var(--f-serif,inherit);margin:0}
+.usubj summary{display:grid;grid-template-columns:1fr auto;gap:6px 10px;cursor:pointer;list-style:none}
+.usubj summary::-webkit-details-marker{display:none}
+.sbar{grid-column:1/-1;display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--chip)}
+.sbar i{display:block;transform-origin:left;animation:ugrow .6s ease both}
 .ugr{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
-.ugr button{padding:12px 10px;border-radius:10px;font-weight:600}
+.ugr button{padding:13px 10px;border-radius:10px;font-weight:600}
 .ugr .g1{background:#c0392b;color:#fff;border:0}.ugr .g2{background:#b87503;color:#fff;border:0}.ugr .g3{background:#2e7d32;color:#fff;border:0}
-.urun .card{min-height:0}
-.v0{margin:0;padding-left:20px;display:grid;gap:6px}
+.stop{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.stop .note{max-width:45vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ucard{animation:uin .3s ease both;min-height:0}
+.ucard .q{font-size:19px}
+.ucard .a{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.ucont{line-height:1.55;overflow-wrap:anywhere}
+.ucont p,.ucont ul,.ucont ol{margin:.5em 0}
+.ucont table{border-collapse:collapse;display:block;overflow-x:auto;font-size:14px}
+.ucont td,.ucont th{border:1px solid var(--line);padding:5px 7px}
+.ucont blockquote{margin:.5em 0;padding:6px 12px;border-left:3px solid var(--accent);background:var(--chip);border-radius:6px}
+.ucont figure{margin:12px 0;animation:uin .5s ease both}
+.ucont figure img{max-width:100%;height:auto;border-radius:8px;background:#fff}
+.ucont figcaption{font-size:12px;color:var(--muted);margin-top:4px}
+.ucont details{background:var(--chip);border-radius:8px;padding:6px 10px;margin:6px 0}
+.ucontent{max-height:none}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:2px 0}
+.uhint{font-size:14px;background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:10px;padding:10px 12px}
+.ucont,details.fold,.ucard{min-width:0;max-width:100%}
+.ucont{overflow-x:auto}
+.ucont .katex-display,.ucont .katex{max-width:100%}
+.ucont .katex-display>.katex{overflow-x:auto;overflow-y:hidden}
+#mMain>*,#uMain>*{min-width:0;max-width:100%}
+.unow h2{font-weight:650;font-size:21px}
+.ubig{font-weight:650}
+details.fold.panel{display:block;overflow:hidden}
+details.fold.panel>.ucont{margin-top:10px}
+.ucont p,.ucont li{overflow-x:auto;overflow-y:hidden}
+.ucard{overflow:hidden}

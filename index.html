@@ -16,7 +16,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="css/app.css">
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/mhchem.min.js"></script>
 <script type="module" src="js/app.js"></script>
 </head>
 <body>
@@ -82,18 +85,10 @@
 </section>
 
 <!-- ===== UČIT ===== -->
-<section data-tab="ucit" class="col" hidden>
-  <div class="seg" role="tablist" id="uSeg">
-    <button type="button" role="tab" data-u="ted" aria-selected="true">Co teď</button>
-    <button type="button" role="tab" data-u="diag">Diagnostika</button>
-    <button type="button" role="tab" data-u="mapa">Mapa</button>
-  </div>
-  <div data-u="ted" class="col" id="uTed"></div>
-  <div data-u="diag" class="col" id="uDiag" hidden></div>
-  <div data-u="mapa" class="col" id="uMapa" hidden></div>
-  <div class="col urun" id="uRun" hidden></div>
-  <p class="note">Staré kartičky najdeš pořád tady: <button class="link" type="button" data-go="karticky">Kartičky ›</button></p>
-</section>
+<section data-tab="ucit" class="col" hidden><div id="uMain" class="col"></div></section>
+
+<!-- ===== MAPA ===== -->
+<section data-tab="mapa" class="col" hidden><div id="mMain" class="col"></div></section>
 
 <!-- ===== KARTIČKY ===== -->
 <section data-tab="karticky" class="col" hidden>
@@ -160,6 +155,7 @@
 
 <!-- ===== VÍC ===== -->
 <section data-tab="vic" class="col" hidden>
+  <div class="panel"><h2>Další</h2><div class="row"><button class="ghost" type="button" data-go="dnes">Rozvrh dne</button><button class="ghost" type="button" data-go="predmety">Předměty a termíny</button><button class="ghost" type="button" data-go="karticky">Kartičky</button></div></div>
   <div class="panel">
     <div class="ph"><h2>Úkoly</h2><span class="note" id="todoSum"></span></div>
     <ul class="todo" id="todo"></ul>
@@ -206,11 +202,10 @@
 </main></div>
 
 <nav class="dock" id="dock" aria-label="Sekce"><div class="wrap">
-  <button data-go="dnes" type="button" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Dnes</button>
-  <button data-go="tyden" type="button"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Týden</button>
-  <button data-go="ucit" type="button"><svg viewBox="0 0 24 24"><path d="M4 18V6l8-3 8 3v12l-8 3z"/><path d="M12 9v12M4 6l8 3 8-3"/></svg><span>Učit<span class="badge" id="badge" hidden></span></span></button>
-  <button data-go="predmety" type="button"><svg viewBox="0 0 24 24"><path d="M5 4h10a4 4 0 0 1 4 4v12H9a4 4 0 0 1-4-4z"/><path d="M5 16a4 4 0 0 1 4-4h10"/></svg>Předměty</button>
-  <button data-go="vic" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>Víc</button>
+  <button data-go="ucit" type="button" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 18V6l8-3 8 3v12l-8 3z"/><path d="M12 9v12M4 6l8 3 8-3"/></svg><span>Učit<span class="badge" id="badge" hidden></span></span></button>
+  <button data-go="mapa" type="button"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Mapa</button>
+  <button data-go="tyden" type="button"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Plán</button>
+  <button data-go="vic" type="button"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Víc</button>
 </div></nav>
 <div class="grades" id="gradesBar" hidden><div class="wrap"><div class="in" id="grades"></div></div></div>
 <noscript>Aplikace potřebuje JavaScript.</noscript>

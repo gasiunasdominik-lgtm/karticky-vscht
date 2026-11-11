@@ -956,7 +956,12 @@ setInterval(() => { if (TAB === 'dnes' && !S) renderNow(); }, 60e3);
 // ---------- start
 srs = ls.get('k_srs', {}); diag = ls.get('k_diag', {}); log = ls.get('k_log', {}); set = { ...set, ...ls.get('k_set', {}) }; done = ls.get('k_done', null);
 if (!done) { done = {}; for (const id of SEED_DONE) done[id] = [true, 1]; persist(); }
-if ('serviceWorker' in navigator && location.hostname !== 'localhost') navigator.serviceWorker.register('./sw.js');
+if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
+  // nová verze appky: service worker se aktivuje sám (skipWaiting) → jednou přenačíst, ať je vidět hned
+  const hadCtl = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtl && !reloaded && !S && !UQ) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.register('./sw.js').then(r => { r.update(); document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update(); }); });
+}
 Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then(r => r.json()), fetch('uceni.json').then(r => r.json()).catch(() => null)]).then(([d, sm, uc]) => {
   if (uc) { UC = uc; UT = uc.topics; UBY = Object.fromEntries(UT.map(t => [t.id, t])); }
   DATA = d; SEM = sm; CARDS = d.cards; BYID = Object.fromEntries(CARDS.map(c => [c.id, c])); W1 = isoToDay(d.w1);

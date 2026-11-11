@@ -718,7 +718,8 @@ function renderMapa() {
   for (const [s, lab] of [[4, 'umím'], [3, 'skoro'], [2, 'zhruba'], ['1X', 'neumím / nerozumím']]) {
     const n = s === '1X' ? (tot[1] || 0) + (tot.X || 0) : tot[s] || 0; const d = el('div'); d.append(el('b', 'num', String(n)), el('span', null, lab)); k.appendChild(d);
   }
-  box.appendChild(panel(null, k, el('div', 'note', `Neověřeno: ${tot[0] || 0} · nebráno: ${tot.B || 0} · látka, která ještě nebyla, se nepočítá.`)));
+  const exp = el('button', 'primary', 'Poslat výsledky Claudovi'); exp.type = 'button'; exp.onclick = exportDiag;
+  box.appendChild(panel(null, k, exp, el('div', 'note', `Neověřeno: ${tot[0] || 0} · nebráno: ${tot.B || 0} · látka, která ještě nebyla, se nepočítá.`)));
   for (const s of SUBJS) {
     const ts = UT.filter(t => t.s === s); if (!ts.length) continue;
     const ul = el('div', 'list');
@@ -826,6 +827,21 @@ function learnDone() {
   const nst = lv >= 4 ? 4 : lv === 3 ? Math.max(3, +st || 0) : lv === 2 ? 3 : lv === 1 ? 2 : (st === 'X' && !ok ? 'X' : 1);
   saveDiag(t.id, { ...r, lv, st: nst, nx: nextRev(t, lv) });
   UQ = null; toast(msg); renderUcit(); syncNow(false);
+}
+
+// export výsledků jako text (pro vložení do chatu, když sync neběží)
+async function exportDiag() {
+  const L = [`DIAG ${dayIso(today())}`]; const qmap = {};
+  for (const t of UT) for (const q of t.qs) qmap[q.id] = q.q;
+  for (const t of UT) {
+    const r = diag[t.id]; if (!r) continue;
+    const bad = (r.h || []).filter(x => x[2] <= 1 && x[2] >= 0).map(x => (x[2] === 0 ? '?' : '-') + (qmap[x[1]] || x[1]).slice(0, 70));
+    L.push(`${t.id}|${r.st}|V${r.lv || 0}${bad.length ? '|' + [...new Set(bad)].join(' ; ') : ''}`);
+  }
+  const txt = L.join('\n');
+  try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch { /* zrušeno */ }
+  try { await navigator.clipboard.writeText(txt); toast('Zkopírováno – vlož to Claudovi do chatu'); }
+  catch { const ta = el('textarea'); ta.value = txt; ta.style.width = '100%'; ta.rows = 8; $('uMapa').prepend(ta); ta.select(); toast('Označ a zkopíruj text nahoře'); }
 }
 
 // ---------- ovládání

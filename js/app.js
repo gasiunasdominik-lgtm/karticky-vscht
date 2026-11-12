@@ -674,7 +674,7 @@ function autoCtx() {
 function stepFor(t, kde, min) {
   if (stOf(t) === 0) return { k: 'diag', m: 2, lab: 'Ověřit, co víš', why: 'nová látka' };
   if (reviewDue(t) && lvOf(t) >= target(t)) return { k: 'rev', m: 3, lab: 'Rychlé opakování', why: forgotten(t) ? 'dlouho jsi to neviděl' : 'opakování je na řadě' };
-  const lv = lvOf(t), m = Math.min(min, kde === 'doma' ? STEPMIN[lv] + 5 : 10);
+  const lv = lvOf(t), m = Math.min(min, kde !== 'cesta' ? STEPMIN[lv] + 5 : 10);
   return { k: 'learn', lv, m, lab: LVN[lv], why: stOf(t) === 'X' ? 'tady jsi nerozuměl – jdeme od základu' : '' };
 }
 function plan(ctx) {
@@ -779,7 +779,7 @@ function startDiag(n, only) {
   if (TAB !== 'ucit') go('ucit'); else renderUcit(); window.scrollTo({ top: 0 });
 }
 async function startLearn(t, ctx, review) {
-  const o = await loadObs(t.id), lv = lvOf(t), doma = ctx.kde === 'doma', short = ctx.min <= 10;
+  const o = await loadObs(t.id), lv = lvOf(t), doma = ctx.kde !== 'cesta', short = ctx.min <= 10;
   const recent = new Set(((diag[t.id] || {}).h || []).filter(x => x[2] === 3 && x[0] >= today() - 1).map(x => x[1]));
   let qs = t.qs.filter(q => !recent.has(q.id)); if (lv >= 2) qs = qs.slice().reverse();
   const P = n => (o.lv[String(n)] || []);

@@ -693,31 +693,46 @@ function autoCtx() {
   if (!b) return UCTX;
   const left = Math.max(5, mins(b.b) - Math.max(m, mins(b.a)));
   const min = [10, 25, 50, 90].reduce((a, o) => o <= left ? o : a, 10);
-  return { ...UCTX, kde: blockKde(b), min, auto: b.co, akt: isAkt(b) };
+  return { ...UCTX, kde: blockKde(b), min, auto: b.co, akt: isAkt(b), mock: /nanečisto/i.test(b.co) };
 }
 // co konkrétně udělat s tématem
-function stepFor(t, kde, min, akt) {
-  if (stOf(t) === 0) return { k: 'diag', m: 2, lab: 'Ověřit, co víš', why: akt ? 'dnešní látka' : 'nová látka' };
-  if (reviewDue(t) && lvOf(t) >= target(t)) return { k: 'rev', m: 3, lab: 'Rychlé opakování', why: forgotten(t) ? 'dlouho jsi to neviděl' : 'opakování je na řadě' };
-  const lv = lvOf(t), m = Math.min(min, kde !== 'cesta' ? STEPMIN[lv] + 5 : 10);
-  return { k: 'learn', lv, m, lab: LVN[lv], why: akt ? 'dnešní přednáška – zpracuj ji ještě dnes' : stOf(t) === 'X' ? 'tady jsi nerozuměl – začneme přirovnáním' : '' };
+// ----- fáze tématu: učení (výklad + první příklady) → cvičení (těžší příklady) → opakování (otázky + testová úloha)
+const PRAKT = new Set(['MAT', 'CBV', 'PCP', 'OACC']);
+const fazeOf = t => { const lv = lvOf(t); return stOf(t) === 'X' || lv <= 0 ? 'uceni' : lv <= 2 ? 'cviceni' : 'opakovani'; };
+const FAZE = { uceni: 'Učení – výklad a první příklady', cviceni: 'Cvičení – těžší příklady', opakovani: 'Opakování – ověř, že to drží' };
+function zadani(t, kde, f) {           // co, s čím a kritérium splnění bloku
+  const papir = kde !== 'cesta' && PRAKT.has(t.s);
+  const pom = papir ? `papír a tužka${t.s === 'CBV' ? ', kalkulačka' : ''}${t.s === 'PCP' ? ', MATLAB (piš sám, bez Copilota)' : ''} · list ${t.id} na reMarkable` : 'mobil (appka)';
+  const co = f === 'uceni' ? (papir ? 'přečti výklad se schématy → projdi řešený příklad → 2 příklady sám na papír → 2 otázky' : 'přečti výklad se schématy → projdi řešený příklad → 3 otázky z toho, co jsi četl')
+    : f === 'cviceni' ? (papir ? 'na co si dát pozor → 3 příklady o úroveň těžší na papír → 1 otázka' : 'na co si dát pozor → 4 otázky')
+      : (papir ? '1 testová úloha na čas → 3 otázky' : '4 otázky napříč tématem');
+  return { pom, co, krit: 'vyjde aspoň 2/3 příkladů a otázek', papir };
 }
-// plán na jeden blok: v „dnešních“ blocích nejdřív aktuální kolej, zbytek dluh
+function stepFor(t, kde, min, akt) {
+  if (reviewDue(t) && lvOf(t) >= target(t)) return { k: 'rev', m: 5, lab: 'Rychlé opakování', why: forgotten(t) ? 'dlouho jsi to neviděl' : 'opakování je na řadě', ...zadani(t, kde, 'opakovani') };
+  const f = fazeOf(t), z = zadani(t, kde, f), m = Math.min(min, f === 'uceni' ? (z.papir ? 30 : 15) : f === 'cviceni' ? (z.papir ? 30 : 10) : (z.papir ? 20 : 8));
+  return { k: 'learn', f, m, lab: FAZE[f], why: akt ? 'dnešní přednáška – zpracuj ji ještě dnes' : stOf(t) === 'X' ? 'tady jsi nerozuměl – začneme přirovnáním a výkladem' : '', ...z };
+}
+// doma a v pauze přednost praktickým předmětům (MAT, CBV, PCP, OAC cvičení), na cestě teorii a opakování
+const placeW = (t, kde) => kde === 'cesta' ? (PRAKT.has(t.s) ? 0.6 : 1.4) : (PRAKT.has(t.s) ? 1.6 : 0.6);
 function plan(ctx, used = new Set(), max = 3) {
   const out = []; let left = ctx.min;
+  if (ctx.mock) { const s = mockSubj(); if (s) { out.push({ mock: s, s: { k: 'mock', m: Math.min(left, 60), lab: `Test nanečisto – ${SUBJN[s]}`, co: '4 úlohy na čas jako v testu, pak oprava podle řešení', pom: 'papír, tužka, bez poznámek', krit: 'aspoň 3 ze 4 úloh správně' } }); return out; } }
   const add = (t, akt) => { if (used.has(t.id) || left < 2 || out.length >= max) return; const s = stepFor(t, ctx.kde, left, akt); if (s.m > left + 3) return; out.push({ t, s, ts: topicTest(t), akt }); used.add(t.id); left -= s.m; };
-  if (ctx.akt !== false && ctx.kde !== 'cesta') for (const t of aktTopics()) add(t, true);
-  const cand = UT.filter(t => prio(t) > 0 && !used.has(t.id)).sort((a, b) => prio(b) - prio(a) || lvOf(a) - lvOf(b));
+  for (const t of aktTopics()) if ((ctx.kde === 'cesta') !== PRAKT.has(t.s)) add(t, true);   // dnešní praktické doma/v pauze, dnešní teorie na cestě
+  const cand = UT.filter(t => prio(t) > 0 && !used.has(t.id)).sort((a, b) => prio(b) * placeW(b, ctx.kde) - prio(a) * placeW(a, ctx.kde) || lvOf(a) - lvOf(b));
   for (const t of cand) add(t, false);
   return out;
 }
+// test nanečisto: praktický předmět s nejbližším testem
+function mockSubj() { const c = SUBJS.filter(s => PRAKT.has(s)).map(s => ({ s, b: budget(s) })).filter(x => x.b).sort((a, b) => a.b.dd - b.b.dd); return c.length ? c[0].s : null; }
 // plán celého dne: zbývající učební bloky a co v nich
 function dayPlan() {
   const now = new Date(), m = now.getHours() * 60 + now.getMinutes(), used = new Set(), out = [];
   for (const b of learnBlocks(dowNow())) {
     if (mins(b.b) <= m) continue;
     const len = mins(b.b) - Math.max(m, mins(b.a)); if (len < 8) continue;
-    const ctx = { min: Math.min(len, b.t === 'cesta' ? 30 : len), kde: blockKde(b), akt: isAkt(b) };
+    const ctx = { min: Math.min(len, b.t === 'cesta' ? 30 : len), kde: blockKde(b), akt: isAkt(b), mock: /nanečisto/i.test(b.co) };
     out.push({ b, ctx, items: plan(ctx, used, 6), cur: mins(b.a) <= m });
   }
   return out;
@@ -753,23 +768,22 @@ function renderUcit() {
   if (!p.length) box.appendChild(panel(null, el('p', null, 'Teď nic nehoří. Odpočívej, nebo si v Mapě vyber téma, které tě zajímá.')));
   else {
     const it = p[0], c = el('div', 'unow' + (it.akt ? ' akt' : ''));
-    const top = el('div', 'row'); top.append(tag(it.t.s), el('span', 'kolej', it.akt ? 'dnešní látka' : 'dohánění'), el('span', 'note', `${it.s.m} min${it.ts ? ` · ${it.ts.n} ${inDays(it.ts.day - today())}` : ''}`));
-    c.append(top, el('h2', null, it.t.n), el('div', 'ustep', it.s.lab));
+    const top = el('div', 'row'); top.append(tag(it.mock || it.t.s), el('span', 'kolej', it.mock ? 'test nanečisto' : it.akt ? 'dnešní látka' : 'dohánění'), el('span', 'note', `${it.s.m} min${it.ts ? ` · ${it.ts.n} ${inDays(it.ts.day - today())}` : ''}`));
+    c.append(top, el('h2', null, it.mock ? SUBJN[it.mock] : it.t.n), el('div', 'ustep', it.s.lab));
     if (it.s.why) c.appendChild(el('div', 'note', it.s.why));
-    c.appendChild(ladder(it.t));
+    if (it.s.co) { const dl = el('dl', 'uzadl'); for (const [k, v] of [['Co', it.s.co], ['S čím', it.s.pom], ['Splněno, když', it.s.krit]]) if (v) dl.append(el('dt', null, k), el('dd', null, v)); c.appendChild(dl); }
+    if (!it.mock) c.appendChild(ladder(it.t));
     const b = el('button', 'primary', 'Začít'); b.type = 'button'; b.onclick = () => go2(it, ctx); c.appendChild(b);
     box.appendChild(c);
     if (p.length > 1) {
       const pl = el('div', 'list unext'); pl.appendChild(el('div', 'note', 'Potom'));
-      for (const x of p.slice(1)) { const r = el('button', 'urow'); r.type = 'button'; r.append(el('i', 'dot ' + STC[stOf(x.t)]), el('span', 't', `${x.t.n} – ${x.s.lab.toLowerCase()}`), el('span', 'note', x.s.m + ' min')); r.onclick = () => go2(x, ctx); pl.appendChild(r); }
+      for (const x of p.slice(1)) { if (x.mock) continue; const r = el('button', 'urow'); r.type = 'button'; r.append(el('i', 'dot ' + STC[stOf(x.t)]), el('span', 't', `${x.t.n} – ${x.s.lab.toLowerCase()}`), el('span', 'note', x.s.m + ' min')); r.onclick = () => go2(x, ctx); pl.appendChild(r); }
       box.appendChild(pl);
     }
   }
   // 4) dnešní plán jednou řádkou + nová látka k ověření
   const dp = dayPlan(), tot = dp.filter(x => x.b.t !== 'cesta').reduce((a, x) => a + (mins(x.b.b) - mins(x.b.a)), 0);
   if (dp.length) { const b = el('button', 'ghost uwide', `Dnes ještě ${dp.length} ${dp.length === 1 ? 'blok' : dp.length < 5 ? 'bloky' : 'bloků'} · ${fmtMin(tot)} učení ›`); b.type = 'button'; b.onclick = () => go('plan'); box.appendChild(b); }
-  const nd = UT.filter(t => taught(t) && stOf(t) === 0);
-  if (nd.length) { const b = el('button', 'ghost uwide', `Nová látka k ověření: ${nd.length} ${nd.length === 1 ? 'téma' : nd.length < 5 ? 'témata' : 'témat'} · ~${nd.length * 2} min`); b.type = 'button'; b.onclick = () => startDiag(nd.length); box.appendChild(b); }
 }
 
 // ----- PLÁN: dnešní bloky, testy, dluh
@@ -792,7 +806,7 @@ function renderPlan() {
     bl.appendChild(hd);
     const ul = el('div', 'list');
     if (!x.items.length) ul.appendChild(el('div', 'note', x.b.t === 'cesta' ? 'opakování v appce nebo odpočinek' : 'volno na cokoli z Mapy'));
-    for (const it of x.items) { const r = el('button', 'urow'); r.type = 'button'; r.append(el('i', 'dot ' + STC[stOf(it.t)]), el('span', 't', `${it.akt ? '● ' : ''}${it.t.n} – ${it.s.lab.toLowerCase()}`), el('span', 'note', it.s.m + ' min')); r.onclick = () => { go('ucit'); go2(it, x.ctx); }; ul.appendChild(r); }
+    for (const it of x.items) { const r = el('button', 'urow'); r.type = 'button'; r.append(el('i', 'dot ' + (it.mock ? 'u-x' : STC[stOf(it.t)])), el('span', 't', it.mock ? `${it.s.lab} · ${it.s.pom}` : `${it.akt ? '● ' : ''}${it.t.n} – ${it.s.lab.toLowerCase()} · ${it.s.pom}`), el('span', 'note', it.s.m + ' min')); r.onclick = () => { go('ucit'); go2(it, x.ctx); }; ul.appendChild(r); }
     bl.appendChild(ul); pd.appendChild(bl);
   }
   pd.appendChild(el('div', 'note', '● = dnešní látka (aktuální kolej), ostatní = dohánění. Plán se přepočítá po každém splněném kroku.'));
@@ -818,7 +832,7 @@ function renderPlan() {
   box.appendChild(pdl);
   const old = el('button', 'link', 'Starý týdenní přehled ›'); old.type = 'button'; old.onclick = () => go('tyden'); box.appendChild(old);
 }
-function go2(it, ctx) { if (it.s.k === 'diag') startDiag(1, [it.t]); else if (it.s.k === 'rev') startLearn(it.t, ctx, true); else startLearn(it.t, ctx); }
+function go2(it, ctx) { if (it.mock) return startMock(it.mock); if (it.s.k === 'diag') startDiag(1, [it.t]); else if (it.s.k === 'rev') startLearn(it.t, ctx, true); else startLearn(it.t, ctx); }
 // žebřík vrstev (animovaný ukazatel, kde v tématu jsi)
 function ladder(t) {
   const d = el('div', 'ladder'), lv = lvOf(t), st = stOf(t);
@@ -873,24 +887,40 @@ function startDiag(n, only) {
   if (TAB !== 'ucit') go('ucit'); else renderUcit(); window.scrollTo({ top: 0 });
 }
 async function startLearn(t, ctx, review) {
-  const o = await loadObs(t.id), lv = lvOf(t), doma = ctx.kde !== 'cesta', short = ctx.min <= 10;
+  const o = await loadObs(t.id), lv = lvOf(t), f = review ? 'opakovani' : fazeOf(t), z = zadani(t, ctx.kde, f), short = ctx.min <= 10;
   const recent = new Set(((diag[t.id] || {}).h || []).filter(x => x[2] === 3 && x[0] >= today() - 1).map(x => x[1]));
-  let qs = t.qs.filter(q => !recent.has(q.id)); if (lv >= 2) qs = qs.slice().reverse();
-  const P = n => (o.lv[String(n)] || []);
+  const base = t.qs.filter(q => !q.c && !recent.has(q.id)), cards = t.qs.filter(q => q.c && !recent.has(q.id));
+  const P = n => (o.lv[String(n)] || []).slice();
   const steps = [];
   const C = (title, k) => o[k] && steps.push({ k: 'c', title, html: o[k] });
-  const Q = n => qs.slice(0, n).forEach(q => steps.push({ k: 'q', q }));
+  const Q = (n, pool) => pool.slice(0, n).forEach(q => steps.push({ k: 'q', q }));
   const X = (n, cnt) => P(n).slice(0, cnt).forEach(p => steps.push({ k: 'p', p, lv: n }));
-  if (review) Q(2);
-  else if (lv === 0) { C('Co budeš umět', 'cil'); if (!short && o.pre) steps.push({ k: 'c', title: 'Nejdřív zkus odpovědět (nevadí, když nevíš)', html: o.pre, pre: true }); C('O čem to je', 'v0'); Q(2); }
-  else if (lv === 1) { C('Jádro', 'jadro'); if (doma && !short) { C('Řešené příklady – takhle to vypadá v testu', 'rp'); X(1, 2); } Q(short ? 2 : 3); }
-  else if (lv === 2) { if (!short) C('Proč to tak je', 'proc'); if (doma) X(2, short ? 1 : 3); else if (!short) C('Řešené příklady – takhle to vypadá v testu', 'rp'); Q(short ? 2 : 3); }
-  else if (lv === 3) { if (doma && P(3).length) X(3, short ? 1 : 3); else C('Časté chyby', 'chyby'); Q(short ? 2 : 4); }
-  else { if (doma && P(4).length) X(4, short ? 1 : 2); else C('Souvislosti', 'souv'); Q(short ? 2 : 4); }
-  if (!steps.length) Q(3);
-  if (o.an && !review && (stOf(t) === 'X' || stOf(t) === 1 || lv === 0)) steps.unshift({ k: 'c', title: 'Představ si to takhle', html: o.an, an: true });
-  UQ = { mode: 'learn', t, lv, review, steps, i: 0, gs: [], shown: false, pcp: t.s === 'PCP' && doma && lv >= 1 };
+  if (f === 'uceni') {
+    if (o.an) steps.push({ k: 'c', title: 'Představ si to takhle', html: o.an, an: true });
+    C('Výklad – přečti, schémata si prohlédni', 'jadro');
+    if (!short) C('Takhle to vypadá v testu – projdi postup', 'rp');
+    if (z.papir) { X(1, 2); Q(2, base); } else Q(3, base);            // otázky jen z toho, co právě bylo ve výkladu (první otázky listu = jádro)
+  } else if (f === 'cviceni') {
+    C('Na co si dát pozor', 'chyby');
+    if (z.papir) { X(Math.min(3, lv + 1), short ? 1 : 3); if (!P(Math.min(3, lv + 1)).length) X(2, 3); Q(1, base.slice(2)); } else Q(4, [...base.slice(2), ...cards]);
+  } else {
+    if (z.papir) { X(P(3).length ? 3 : 2, 1); Q(3, [...cards, ...base].sort(() => Math.random() - .5)); } else Q(4, [...cards, ...base].sort(() => Math.random() - .5));
+  }
+  if (!steps.some(s => s.k !== 'c')) Q(3, [...base, ...cards]);
+  steps.unshift({ k: 'zad', z, f });
+  UQ = { mode: 'learn', t, o, lv, f, review, steps, i: 0, gs: [], shown: false, z };
   if (TAB !== 'ucit') go('ucit'); else renderUcit(); window.scrollTo({ top: 0 });
+}
+function startMock(s) {
+  const tt = UT.filter(t => t.s === s && taught(t) && stOf(t) !== 'B'), items = [];
+  for (const lvl of [3, 2]) for (const t of tt.sort(() => Math.random() - .5)) { if (items.length >= 4) break; const n = (t.np || {})[String(lvl)]; if (n && !items.some(x => x.t === t)) items.push({ t, lvl }); }
+  if (!items.length) return toast('Na test nanečisto zatím nejsou příklady');
+  Promise.all(items.map(x => loadObs(x.t.id))).then(os => {
+    const steps = [{ k: 'zad', mock: true, z: { co: `${items.length} úlohy jako v testu. Počítej na papír na čas (~${items.length * 11} min), pak teprve odkrývej výsledky.`, pom: 'papír, tužka, bez poznámek' + (s === 'CBV' ? ', kalkulačka' : ''), krit: `aspoň ${Math.ceil(items.length * 0.75)} z ${items.length} úloh správně` } }];
+    items.forEach((x, i) => { const arr = os[i].lv[String(x.lvl)] || []; const p = arr[Math.floor(Math.random() * arr.length)]; if (p) steps.push({ k: 'p', p, lv: x.lvl, t: x.t }); });
+    UQ = { mode: 'learn', mock: s, t: items[0].t, steps, i: 0, gs: [], shown: false, t0: Date.now() };
+    if (TAB !== 'ucit') go('ucit'); else renderUcit(); window.scrollTo({ top: 0 });
+  });
 }
 const diagQ = (t, step) => step === 0 ? t.qs[0] : t.qs[Math.min(t.qs.length - 1, 3)];
 function topBar(label, frac) {
@@ -911,27 +941,41 @@ function drawUQ() {
     return;
   }
   const t = UQ.t, s = UQ.steps[UQ.i];
-  box.appendChild(topBar(t.n, UQ.i / UQ.steps.length));
-  if (UQ.pcp && UQ.i === 0) box.appendChild(el('div', 'uhint', 'MATLAB piš sám, bez Copilota. Copilota použij až na kontrolu hotového kódu.'));
-  const next = () => { UQ.i++; UQ.shown = false; if (UQ.i >= UQ.steps.length) return learnDone(); drawUQ(); window.scrollTo({ top: 0 }); };
+  box.appendChild(topBar(UQ.mock ? `Test nanečisto · ${SUBJN[UQ.mock]}` : t.n, UQ.i / UQ.steps.length));
+  const next = () => { UQ.i++; UQ.shown = false; UQ.fb = null; if (UQ.i >= UQ.steps.length) return learnDone(); drawUQ(); window.scrollTo({ top: 0 }); };
+  if (s.k === 'zad') {                                   // zadání bloku: co, s čím, kritérium
+    const c = el('div', 'card ucard uzad');
+    c.append(el('div', 'meta', UQ.mock ? 'Test nanečisto' : FAZE[UQ.f]), el('h2', null, UQ.mock ? SUBJN[UQ.mock] : t.n));
+    const dl = el('dl'); for (const [k, v] of [['Co uděláš', s.z.co], ['S čím', s.z.pom], ['Kritérium', s.z.krit]]) dl.append(el('dt', null, k), el('dd', null, v));
+    c.appendChild(dl); box.appendChild(c);
+    box.appendChild(btns([['Jdu na to', 'primary', next]])); return;
+  }
   if (s.k === 'c') {
     const c = el('div', 'card ucard ucontent' + (s.an ? ' uan' : '')); c.append(el('div', 'meta', s.title), H('ucont', s.html)); box.appendChild(c);
-    box.appendChild(btns([[s.pre ? 'Hotovo, teď výklad' : 'Rozumím, dál', 'primary', next]])); return;
+    box.appendChild(btns([['Přečteno, dál', 'primary', next]])); return;
   }
+  const pt = s.t || t;
   if (s.k === 'p') {
-    const c = el('div', 'card ucard'); c.append(el('div', 'meta', `Příklad ${s.p.n} · spočítej na papír`), H('q', s.p.z));
-    if (UQ.shown) { c.append(el('div', 'meta', 'Výsledek'), H('a', s.p.r || '—')); if (UQ.shown === 'sol' && s.p.s) c.append(el('div', 'meta', 'Řešení krok za krokem'), H('ucont', s.p.s)); }
+    const c = el('div', 'card ucard'); c.append(el('div', 'meta', `${UQ.mock ? pt.n + ' · ' : ''}Příklad ${s.p.n} · spočítej na papír, pak odkryj`), H('q', s.p.z));
+    if (UQ.shown) { c.append(el('div', 'meta', 'Výsledek'), H('a', s.p.r || '—')); if (UQ.shown === 'sol' && s.p.s) c.append(el('div', 'meta', 'Postup krok za krokem'), H('ucont', s.p.s)); }
     box.appendChild(c);
-    const id = `p:${t.id}:${s.p.n}`;
-    box.appendChild(!UQ.shown ? btns([['Ukázat výsledek', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nevím, jak začít', 'ghost', () => { UQ.shown = 'sol'; rec(t, id, 1); UQ.gs.push(1); drawUQ(); }]])
-      : UQ.shown === 'sol' ? btns([['Projel jsem řešení, dál', 'primary', next]])
-        : btns([['Vyšlo', 'g3', () => { rec(t, id, 3); UQ.gs.push(3); next(); }], ['Nevyšlo – ukaž řešení', 'g1', () => { rec(t, id, 1); UQ.gs.push(1); UQ.shown = 'sol'; drawUQ(); }]]));
+    const id = `p:${pt.id}:${s.p.n}`;
+    box.appendChild(!UQ.shown ? btns([['Ukázat výsledek', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nevím, jak začít – ukaž postup', 'ghost', () => { UQ.shown = 'sol'; rec(pt, id, 1); UQ.gs.push(1); drawUQ(); }]])
+      : UQ.shown === 'sol' ? btns([['Prošel jsem postup, dál', 'primary', next]])
+        : btns([['Vyšlo', 'g3', () => { rec(pt, id, 3); UQ.gs.push(3); next(); }], ['Nevyšlo – ukaž postup', 'g1', () => { rec(pt, id, 1); UQ.gs.push(1); UQ.shown = 'sol'; drawUQ(); }]]));
     return;
   }
-  const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', q.c ? `${q.c} · odpověz sám, pak otoč` : 'Odpověz sám, pak otoč'), H('q', q.q)); if (UQ.shown) c.appendChild(H('a', q.a)); box.appendChild(c);
-  const g = gr => { rec(t, q.id, gr); UQ.gs.push(gr); next(); };
-  box.appendChild(!UQ.shown ? btns([['Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nerozumím', 'ghost', () => g(0)]])
-    : btns([['Věděl jsem', 'g3', () => g(3)], ['Zhruba', 'g2', () => g(2)], ['Nevěděl', 'g1', () => g(1)]]));
+  const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', q.c ? `${q.c} · odpověz sám, pak otoč` : 'Odpověz sám, pak otoč'), H('q', q.q));
+  if (UQ.shown) c.appendChild(H('a', q.a));
+  if (UQ.fb && UQ.o) {                                   // po špatné odpovědi: zdůvodnění z výkladu
+    const d = el('details', 'ufb'); d.open = UQ.f === 'uceni'; const sm = el('summary'); sm.textContent = 'Proč – výklad k tématu'; d.append(sm, H('ucont', UQ.o.jadro || UQ.o.v0 || ''));
+    if (UQ.o.chyby) { const d2 = el('details', 'ufb'); const s2 = el('summary'); s2.textContent = 'Časté chyby'; d2.append(s2, H('ucont', UQ.o.chyby)); c.append(d, d2); } else c.appendChild(d);
+  }
+  box.appendChild(c);
+  const g = gr => { rec(t, q.id, gr); UQ.gs.push(gr); if (gr <= 1 && !UQ.fb) { UQ.fb = true; UQ.shown = true; drawUQ(); return; } next(); };
+  box.appendChild(UQ.fb ? btns([['Rozumím, dál', 'primary', next]])
+    : !UQ.shown ? btns([['Ukázat odpověď', 'primary', () => { UQ.shown = true; drawUQ(); }], ['Nerozumím', 'ghost', () => g(0)]])
+      : btns([['Věděl jsem', 'g3', () => g(3)], ['Zhruba', 'g2', () => g(2)], ['Nevěděl', 'g1', () => g(1)]]));
 }
 function saveDiag(tid, r) { diag[tid] = { ...r, ts: Date.now() }; ls.set('k_diag', diag); dirty.add('srs_DIAG'); persist(); schedulePush(); }
 function rec(t, id, g) { const r = diag[t.id] || { h: [] }; saveDiag(t.id, { ...r, h: [...(r.h || []), [today(), id, g]].slice(-60) }); }
@@ -952,17 +996,27 @@ function diagGrade(g, q) {
   drawUQ();
 }
 function learnDone() {
-  const t = UQ.t, r = { ...(diag[t.id] || { h: [] }) }, gs = UQ.gs, ok = gs.filter(g => g === 3).length, bad = gs.filter(g => g <= 1).length;
-  let lv = r.lv || 0, msg;
-  const pass = gs.length ? ok >= Math.ceil(gs.length * 2 / 3) : true;
-  if (UQ.review) { if (bad > ok) { lv = Math.max(0, lv - 1); msg = 'Trochu se to vytratilo – vrátíme se o krok.'; } else msg = 'Pořád to drží.'; }
-  else if (pass && r.up !== today()) { lv = Math.min(4, lv + 1); r.up = today(); msg = lv === 4 ? 'Výborně, téma umíš.' : `Posun: ${LVN[lv].toLowerCase()}.`; }
-  else if (pass) msg = 'Správně. Další krok až zítra – přes noc se to usadí.';
-  else if (bad > ok) { lv = Math.max(0, lv - 1); msg = 'Zatím to nesedí – příště jednodušeji a s víc vysvětlením.'; }
-  else msg = 'Napůl. Zopakujeme brzy.';
-  const st = lv >= 4 ? 4 : lv === 3 ? 4 : lv === 2 ? 3 : lv === 1 ? 2 : (r.st === 'X' && !ok ? 'X' : 1);
+  const gs = UQ.gs, ok = gs.filter(g => g === 3).length, n = gs.length, pass = n ? ok >= Math.ceil(n * 2 / 3) : true;
+  if (UQ.mock) {
+    const need = Math.ceil(n * 0.75), min = Math.round((Date.now() - UQ.t0) / 60000);
+    return blockResult(`Test nanečisto: ${ok}/${n} úloh`, ok >= need ? `Splněno (potřeba ${need}). Čas ${min} min.` : `Nesplněno (potřeba ${need}). Úlohy, které nevyšly, přijdou v příštích blocích jako cvičení.`, ok >= need);
+  }
+  const t = UQ.t, r = { ...(diag[t.id] || { h: [] }) }, bad = gs.filter(g => g <= 1).length;
+  let lv = r.lv || 0, nxt;
+  if (UQ.review) { if (bad > ok) lv = Math.max(0, lv - 1); }
+  else if (pass && r.up !== today()) { lv = Math.min(4, lv + 1); r.up = today(); }
+  else if (!pass && bad > ok) lv = Math.max(0, lv - 1);
+  const st = lv >= 3 ? 4 : lv === 2 ? 3 : lv === 1 ? 2 : (r.st === 'X' && !ok ? 'X' : 1);
   saveDiag(t.id, { ...r, lv, st, nx: nextRev(t, lv) });
-  UQ = null; toast(msg); renderUcit(); syncNow(false);
+  const nf = lv <= 0 ? 'znovu učení – s jiným příkladem' : lv <= 2 ? 'cvičení (těžší příklady)' : 'opakování v rozestupu';
+  const nd = nextRev(t, lv) - today();
+  nxt = pass ? `Splněno. Příště ${inDays(nd)}: ${nf}.` : `Ještě ne. Příště ${inDays(Math.min(nd, 1))}: ${nf}. Výklad a postupy máš v Mapě u tématu.`;
+  blockResult(`${t.n}: ${ok}/${n} správně`, nxt, pass);
+}
+function blockResult(head, txt, pass) {
+  UQ = null; const box = $('uMain'); box.textContent = '';
+  const c = el('div', 'card ucard ures ' + (pass ? 'ok' : 'ne')); c.append(el('div', 'meta', pass ? 'Kritérium bloku splněno ✓' : 'Kritérium bloku zatím nesplněno'), el('h2', null, head), el('p', null, txt));
+  box.appendChild(c); box.appendChild(btns([['Další krok', 'primary', () => renderUcit()]])); syncNow(false); window.scrollTo({ top: 0 });
 }
 
 // export výsledků jako text (pro vložení do chatu, když sync neběží)

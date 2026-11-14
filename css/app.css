@@ -274,3 +274,8 @@ details.fold.panel>.ucont{margin-top:10px}
 .ufb{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
 .ufb summary{cursor:pointer;font-weight:600;color:var(--accent)}
 .ures h2{margin:6px 0;font-size:21px}.ures.ok{border:2px solid var(--good)}.ures.ne{border:2px solid var(--hard)}
+.uex{background:var(--sunk);border-left:3px solid var(--accent);border-radius:8px;padding:4px 12px;margin:6px 0}
+.uex h4,.ucontent h4{margin:.6em 0 .2em;font-size:14px;color:var(--muted)}
+.uex mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px;font-weight:600}
+.ucard .a.uans{border-top:none;margin-top:4px;padding:8px 12px;background:var(--good-soft);border-radius:8px}
+.ubad{margin:.3em 0;padding-left:18px}.ubad li{margin:.4em 0}.ubada{color:var(--muted);font-size:14px}

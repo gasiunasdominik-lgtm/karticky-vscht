@@ -599,7 +599,7 @@ const STN = { 0: 'neověřeno', B: 'nebráno', X: 'nerozumím', 1: 'neumím', 2:
 const STC = { 0: 'u-0', B: 'u-b', X: 'u-x', 1: 'u-1', 2: 'u-2', 3: 'u-3', 4: 'u-4' };
 const LVN = ['Základ – o čem to je', 'Jádro a první příklady', 'Proč to tak je + příklady', 'Testová úroveň', 'Výzva'];
 const GAP = [1, 2, 4, 7, 14];
-const KDE = { cesta: '🚆 Cesta', doma: '🏠 Doma', skola: '🏫 Pauza' };
+const KDE = { cesta: 'Cesta', doma: 'Doma', skola: 'Pauza ve škole' };
 const STEPMIN = [8, 20, 30, 35, 40];      // odhad minut na posun o vrstvu
 const stOf = t => (diag[t.id] || {}).st ?? 0;
 const lvOf = t => (diag[t.id] || {}).lv || 0;
@@ -665,7 +665,7 @@ const dowNow = () => ((new Date().getDay() + 6) % 7) + 1;
 const blockKde = b => b.t === 'cesta' ? 'cesta' : /pauza|škol/i.test(b.co) ? 'skola' : 'doma';
 const isAkt = b => /dnešní/i.test(b.co);
 const isLehky = b => /lehk|opakov/i.test(b.co) && !/nanečisto/i.test(b.co);
-const KDEI = { cesta: '🚆', doma: '🏠', skola: '🏫' };
+const KDEI = { cesta: 'Cesta', doma: 'Doma', skola: 'Škola' };
 const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `${m} min`;
 function learnBlocks(d) { return ((SEM && SEM.rezim && SEM.rezim[d]) || []).filter(b => b.t === 'uceni' || b.t === 'cesta'); }
 // témata z posledních přednášek, která ještě nejsou zpracovaná (aktuální kolej)
@@ -812,7 +812,7 @@ function renderPlan() {
   if (!dp.length) pd.appendChild(el('p', 'note', 'Na dnešek už žádný učební blok nezbývá. Odpočívej.'));
   for (const x of dp) {
     const bl = el('div', 'pblock' + (x.cur ? ' cur' : ''));
-    const hd = el('div', 'row'); hd.append(el('span', 'ptime', `${x.b.a}–${x.b.b}`), el('b', null, `${KDEI[x.ctx.kde]} ${x.b.co}`));
+    const hd = el('div', 'row'); hd.append(el('span', 'ptime', `${x.b.a}–${x.b.b}`), el('span', 'pk ' + x.ctx.kde, KDEI[x.ctx.kde]), el('b', null, x.b.co.replace(/^\s*\p{Extended_Pictographic}\uFE0F?\s*/u, '')));
     bl.appendChild(hd);
     const ul = el('div', 'list');
     if (!x.items.length) ul.appendChild(el('div', 'note', x.b.t === 'cesta' ? 'opakování v appce nebo odpočinek' : 'volno na cokoli z Mapy'));

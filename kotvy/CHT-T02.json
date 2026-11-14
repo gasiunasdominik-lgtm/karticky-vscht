@@ -1,0 +1,74 @@
+[
+{
+"n": "Methan (zemní plyn)",
+"f": "CH4",
+"kw": [
+"CH4",
+"methan",
+"zemni plyn"
+],
+"smi": "C",
+"st": "g",
+"c": "#dbe9f5",
+"vz": "bezbarvý hořlavý plyn"
+},
+{
+"n": "Vodík",
+"f": "H2",
+"kw": [
+"H2",
+"vodik"
+],
+"smi": "[H][H]",
+"st": "g",
+"c": "#eef4fb",
+"vz": "nejlehčí plyn, bezbarvý"
+},
+{
+"n": "Kyslík",
+"f": "O2",
+"kw": [
+"O2",
+"kyslik"
+],
+"smi": "O=O",
+"st": "g",
+"c": "#a9cbeb",
+"vz": "bezbarvý plyn, kapalný světle modrý (−183 °C)"
+},
+{
+"n": "Dusík",
+"f": "N2",
+"kw": [
+"N2",
+"dusik"
+],
+"smi": "N#N",
+"st": "g",
+"c": "#e7ecf2",
+"vz": "inertní plyn, var −196 °C"
+},
+{
+"n": "Acetylén",
+"f": "C2H2",
+"kw": [
+"acetylen",
+"C2H2"
+],
+"smi": "C#C",
+"st": "g",
+"c": "#f1eee6",
+"vz": "bezbarvý plyn, skladuje se v acetonu"
+},
+{
+"n": "Karbid vápenatý",
+"f": "CaC2",
+"kw": [
+"CaC2",
+"karbid"
+],
+"st": "s",
+"c": "#6e6e6e",
+"vz": "šedé kusy, s vodou dává acetylén"
+}
+]

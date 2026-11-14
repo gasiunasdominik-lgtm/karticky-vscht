@@ -1,0 +1,95 @@
+[
+{
+"n": "Oxid chloričitý",
+"f": "ClO2",
+"kw": [
+"ClO2",
+"oxid chloricity"
+],
+"st": "g",
+"c": "#c9d23f",
+"vz": "žlutozelený plyn, dezinfekce vody"
+},
+{
+"n": "Chlornan sodný",
+"f": "NaClO",
+"kw": [
+"NaClO",
+"chlornan"
+],
+"st": "l",
+"c": "#eef0c8",
+"vz": "nažloutlý roztok (Savo)"
+},
+{
+"n": "Ozon",
+"f": "O3",
+"kw": [
+"O3",
+"ozon",
+"ozonizace"
+],
+"smi": "[O-][O+]=O",
+"st": "g",
+"c": "#9fc3ea",
+"vz": "světle modrý plyn, ostrý zápach"
+},
+{
+"n": "Chlorid železitý",
+"f": "FeCl3",
+"kw": [
+"FeCl3",
+"chlorid zelezity"
+],
+"st": "s",
+"c": "#7a3f14",
+"vz": "hnědočerné krystaly, roztok hnědožlutý – koagulant"
+},
+{
+"n": "Síran hlinitý",
+"f": "Al2(SO4)3",
+"kw": [
+"Al2 SO4",
+"sirany hlinity",
+"Al3"
+],
+"st": "s",
+"c": "#f4f4f2",
+"vz": "bílá sůl – koagulant"
+},
+{
+"n": "Manganistan draselný",
+"f": "KMnO4",
+"kw": [
+"KMnO4",
+"manganistan"
+],
+"st": "s",
+"c": "#5b1a6b",
+"vz": "fialovočerné krystaly, roztok fialový"
+},
+{
+"n": "Uhličitan vápenatý (vodní kámen)",
+"f": "CaCO3",
+"kw": [
+"CaCO3",
+"vodni kamen",
+"karbonatova"
+],
+"st": "s",
+"c": "#f3efe6",
+"vz": "bílý povlak – vzniká varem z Ca(HCO₃)₂"
+},
+{
+"n": "Hydrazin",
+"f": "N2H4",
+"kw": [
+"hydrazin",
+"N2H4"
+],
+"smi": "NN",
+"st": "l",
+"c": "#f2f6fa",
+"vz": "bezbarvá kapalina – váže kyslík z vody"
+}
+]

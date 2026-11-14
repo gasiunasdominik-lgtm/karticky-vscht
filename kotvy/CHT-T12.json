@@ -1,0 +1,58 @@
+[
+{
+"n": "Vápenec",
+"f": "CaCO3",
+"kw": [
+"CaCO3",
+"vapenec"
+],
+"st": "s",
+"c": "#ece8de",
+"vz": "bílá až šedá hornina"
+},
+{
+"n": "Pálené vápno",
+"f": "CaO",
+"kw": [
+"CaO",
+"palene vapno"
+],
+"st": "s",
+"c": "#fbfbf9",
+"vz": "bílé kusy, s vodou se zahřívá"
+},
+{
+"n": "Hašené vápno",
+"f": "Ca(OH)2",
+"kw": [
+"Ca OH 2",
+"hasene vapno"
+],
+"st": "s",
+"c": "#fbfbf9",
+"vz": "bílá kaše/prášek"
+},
+{
+"n": "Sádra",
+"f": "CaSO4.2H2O",
+"kw": [
+"CaSO4",
+"sadra"
+],
+"st": "s",
+"c": "#f6f4ef",
+"vz": "bílý prášek"
+},
+{
+"n": "Křemen (oxid křemičitý)",
+"f": "SiO2",
+"kw": [
+"SiO2",
+"kremen",
+"pisek"
+],
+"st": "s",
+"c": "#e8e6df",
+"vz": "bezbarvé krystaly, písek"
+}
+]

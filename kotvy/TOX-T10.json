@@ -1,0 +1,60 @@
+[
+{
+"n": "EDTA",
+"f": "C10H16N2O8",
+"kw": [
+"EDTA"
+],
+"smi": "OC(=O)CN(CC(=O)O)CCN(CC(=O)O)CC(=O)O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "chelatační činidlo (Na₂Ca-EDTA na olovo)"
+},
+{
+"n": "Dimerkaprol (BAL)",
+"f": "C3H8OS2",
+"kw": [
+"BAL",
+"dimerkaprol"
+],
+"smi": "SCC(S)CO",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "chelátor arsenu a rtuti"
+},
+{
+"n": "DMSA (sukcimer)",
+"f": "C4H6O4S2",
+"kw": [
+"DMSA",
+"sukcimer"
+],
+"smi": "OC(=O)C(S)C(S)C(=O)O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "chelátor olova, perorálně"
+},
+{
+"n": "Penicilamin",
+"f": "C5H11NO2S",
+"kw": [
+"penicilamin"
+],
+"smi": "CC(C)(S)C(N)C(=O)O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "chelátor mědi"
+},
+{
+"n": "Chlorid kademnatý",
+"f": "CdCl2",
+"kw": [
+"CdCl2",
+"kadmium",
+"kademnat"
+],
+"st": "s",
+"c": "#fbfbfb",
+"vz": "bílá sůl – kadmium poškozuje ledviny"
+}
+]

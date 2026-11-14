@@ -1,0 +1,76 @@
+[
+{
+"n": "Ethylen → polyethylen (PE)",
+"f": "C2H4",
+"kw": [
+"PE",
+"polyethylen",
+"ethylen"
+],
+"smi": "C=C",
+"st": "g",
+"c": "#eef2f5",
+"vz": "monomer; PE = (−CH₂−CH₂−)ₙ"
+},
+{
+"n": "Propylen → polypropylen (PP)",
+"f": "C3H6",
+"kw": [
+"PP",
+"polypropylen",
+"propylen"
+],
+"smi": "C=CC",
+"st": "g",
+"c": "#eef2f5",
+"vz": "monomer PP"
+},
+{
+"n": "Butadien",
+"f": "C4H6",
+"kw": [
+"butadien",
+"SBR",
+"NBR"
+],
+"smi": "C=CC=C",
+"st": "g",
+"c": "#eef2f5",
+"vz": "monomer kaučuků SBR, NBR"
+},
+{
+"n": "Isopren",
+"f": "C5H8",
+"kw": [
+"isopren",
+"polyizopren",
+"izopren"
+],
+"smi": "CC(=C)C=C",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "monomer přírodního kaučuku"
+},
+{
+"n": "Bisfenol A",
+"f": "C15H16O2",
+"kw": [
+"bisfenol"
+],
+"smi": "CC(C)(c1ccc(O)cc1)c1ccc(O)cc1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "bílé krystaly – epoxidy, polykarbonát"
+},
+{
+"n": "Epichlorhydrin",
+"f": "C3H5ClO",
+"kw": [
+"epichlorhydrin"
+],
+"smi": "ClCC1CO1",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "s bisfenolem A → epoxid"
+}
+]

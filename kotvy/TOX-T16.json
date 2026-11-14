@@ -1,0 +1,58 @@
+[
+{
+"n": "Ozon",
+"f": "O3",
+"kw": [
+"O3",
+"ozon"
+],
+"smi": "[O-][O+]=O",
+"st": "g",
+"c": "#9fc3ea",
+"vz": "ve stratosféře chrání před UV, u země škodí"
+},
+{
+"n": "Oxid uhličitý",
+"f": "CO2",
+"kw": [
+"CO2"
+],
+"smi": "O=C=O",
+"st": "g",
+"c": "#eef1f4",
+"vz": "hlavní skleníkový plyn"
+},
+{
+"n": "Methan",
+"f": "CH4",
+"kw": [
+"CH4",
+"methan"
+],
+"smi": "C",
+"st": "g",
+"c": "#dbe9f5",
+"vz": "silný skleníkový plyn"
+},
+{
+"n": "Oxid dusný",
+"f": "N2O",
+"kw": [
+"N2O"
+],
+"st": "g",
+"c": "#eef1f4",
+"vz": "skleníkový plyn, rajský plyn"
+},
+{
+"n": "Oxid siřičitý",
+"f": "SO2",
+"kw": [
+"SO2"
+],
+"smi": "O=S=O",
+"st": "g",
+"c": "#eef1f4",
+"vz": "→ kyselé deště"
+}
+]

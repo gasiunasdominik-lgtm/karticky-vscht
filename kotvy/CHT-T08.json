@@ -1,0 +1,62 @@
+[
+{
+"n": "Kyselina fosforečná",
+"f": "H3PO4",
+"kw": [
+"H3PO4",
+"kyselina fosforecna"
+],
+"smi": "OP(=O)(O)O",
+"st": "l",
+"c": "#f6f6f1",
+"vz": "bezbarvá sirupovitá kapalina"
+},
+{
+"n": "Fluorapatit",
+"f": "Ca5(PO4)3F",
+"kw": [
+"fluorapatit",
+"apatit",
+"Ca5"
+],
+"st": "s",
+"c": "#b9c7a2",
+"vz": "zelenavý až šedý nerost – surovina P"
+},
+{
+"n": "Sádra (dihydrát)",
+"f": "CaSO4.2H2O",
+"kw": [
+"CaSO4",
+"dihydrat",
+"hemihydrat",
+"sadra"
+],
+"st": "s",
+"c": "#f6f4ef",
+"vz": "bílý vedlejší produkt"
+},
+{
+"n": "Fluorovodík",
+"f": "HF",
+"kw": [
+"HF",
+"fluorovodik"
+],
+"smi": "F",
+"st": "g",
+"c": "#eef2f5",
+"vz": "bezbarvý leptavý plyn"
+},
+{
+"n": "Oxid fosforečný",
+"f": "P4O10",
+"kw": [
+"P4O10",
+"P2O5"
+],
+"st": "s",
+"c": "#fbfbfb",
+"vz": "bílý hygroskopický prášek"
+}
+]

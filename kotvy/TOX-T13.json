@@ -1,0 +1,82 @@
+[
+{
+"n": "Nikotin",
+"f": "C10H14N2",
+"kw": [
+"nikotin"
+],
+"smi": "CN1CCCC1c1cccnc1",
+"st": "l",
+"c": "#efe2c9",
+"vz": "návykový alkaloid tabáku"
+},
+{
+"n": "Morfin",
+"f": "C17H19NO3",
+"kw": [
+"morfin"
+],
+"smi": "CN1CCC23C4C1CC5=C2C(=C(C=C5)O)OC3C(C=C4)O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "opiát – μ-receptory"
+},
+{
+"n": "Heroin (diacetylmorfin)",
+"f": "C21H23NO5",
+"kw": [
+"heroin"
+],
+"smi": "CN1CCC23C4C1CC5=C2C(=C(C=C5)OC(C)=O)OC3C(C=C4)OC(C)=O",
+"st": "s",
+"c": "#f2eee6",
+"vz": "acetylovaný morfin – rychleji do mozku"
+},
+{
+"n": "THC",
+"f": "C21H30O2",
+"kw": [
+"THC",
+"kanabis",
+"konopi"
+],
+"smi": "CCCCCc1cc(O)c2c(c1)OC(C)(C)C1CCC(C)=CC21",
+"st": "l",
+"c": "#d9c27a",
+"vz": "účinná látka konopí"
+},
+{
+"n": "Dopamin",
+"f": "C8H11NO2",
+"kw": [
+"dopamin"
+],
+"smi": "NCCc1ccc(O)c(O)c1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "neuropřenašeč odměny"
+},
+{
+"n": "Metadon",
+"f": "C21H27NO",
+"kw": [
+"metadon"
+],
+"smi": "CCC(=O)C(CC(C)N(C)C)(c1ccccc1)c1ccccc1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "substituce opiátů"
+},
+{
+"n": "Ethanol",
+"f": "C2H6O",
+"kw": [
+"ethanol",
+"alkohol"
+],
+"smi": "CCO",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "tlumí CNS (GABA)"
+}
+]

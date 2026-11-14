@@ -1,0 +1,91 @@
+[
+{
+"n": "Benzen",
+"f": "C6H6",
+"kw": [
+"benzen"
+],
+"smi": "c1ccccc1",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "karcinogen – leukemie"
+},
+{
+"n": "Toluen",
+"f": "C7H8",
+"kw": [
+"toluen"
+],
+"smi": "Cc1ccccc1",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "rozpouštědlo – CNS"
+},
+{
+"n": "Methanol",
+"f": "CH4O",
+"kw": [
+"methanol"
+],
+"smi": "CO",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "→ kyselina mravenčí, slepota"
+},
+{
+"n": "Ethanol",
+"f": "C2H6O",
+"kw": [
+"ethanol"
+],
+"smi": "CCO",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "antidotum methanolu"
+},
+{
+"n": "Vinylchlorid",
+"f": "C2H3Cl",
+"kw": [
+"vinylchlorid"
+],
+"smi": "C=CCl",
+"st": "g",
+"c": "#eef2f5",
+"vz": "karcinogen – angiosarkom jater"
+},
+{
+"n": "Nitrobenzen",
+"f": "C6H5NO2",
+"kw": [
+"nitrobenzen"
+],
+"smi": "O=[N+]([O-])c1ccccc1",
+"st": "l",
+"c": "#f4e9b8",
+"vz": "nažloutlá kapalina – methemoglobin"
+},
+{
+"n": "Anilin",
+"f": "C6H7N",
+"kw": [
+"anilin"
+],
+"smi": "Nc1ccccc1",
+"st": "l",
+"c": "#efe2c9",
+"vz": "methemoglobin"
+},
+{
+"n": "n-Hexan → 2,5-hexandion",
+"f": "C6H14",
+"kw": [
+"hexan",
+"hexandion"
+],
+"smi": "CCCCCC",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "neurotoxický metabolit 2,5-hexandion"
+}
+]

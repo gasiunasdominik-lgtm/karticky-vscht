@@ -1,0 +1,36 @@
+[
+{
+"n": "TCDD (dioxin)",
+"f": "C12H4Cl4O2",
+"kw": [
+"TCDD",
+"dioxin"
+],
+"smi": "Clc1cc2Oc3cc(Cl)c(Cl)cc3Oc2cc1Cl",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "nejtoxičtější dioxin, TEF = 1"
+},
+{
+"n": "DDT",
+"f": "C14H9Cl5",
+"kw": [
+"DDT"
+],
+"smi": "ClC(Cl)(Cl)C(c1ccc(Cl)cc1)c1ccc(Cl)cc1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "POP – hromadí se v potravním řetězci"
+},
+{
+"n": "Glyfosát",
+"f": "C3H8NO5P",
+"kw": [
+"glyfosat"
+],
+"smi": "OC(=O)CNCP(=O)(O)O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "herbicid"
+}
+]

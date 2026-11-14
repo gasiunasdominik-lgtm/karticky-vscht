@@ -1,0 +1,25 @@
+[
+{
+"n": "Thalidomid",
+"f": "C13H10N2O4",
+"kw": [
+"thalidomid"
+],
+"smi": "O=C1CCC(N2C(=O)c3ccccc3C2=O)C(=O)N1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "teratogen (Contergan)"
+},
+{
+"n": "Ethanol",
+"f": "C2H6O",
+"kw": [
+"ethanol",
+"alkohol"
+],
+"smi": "CCO",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "teratogen a karcinogen"
+}
+]

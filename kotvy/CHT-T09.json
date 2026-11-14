@@ -1,0 +1,58 @@
+[
+{
+"n": "Sylvín (chlorid draselný)",
+"f": "KCl",
+"kw": [
+"KCl",
+"sylvin",
+"sylvinit"
+],
+"st": "s",
+"c": "#e9c9c0",
+"vz": "bezbarvé až narůžovělé krystaly"
+},
+{
+"n": "Apatit",
+"f": "Ca5(PO4)3F",
+"kw": [
+"apatit"
+],
+"st": "s",
+"c": "#b9c7a2",
+"vz": "zelenavý nerost – surovina fosforečných hnojiv"
+},
+{
+"n": "Superfosfát",
+"f": "Ca(H2PO4)2 + CaSO4",
+"kw": [
+"superfosfat"
+],
+"st": "s",
+"c": "#bdb6aa",
+"vz": "šedý granulát"
+},
+{
+"n": "Dusičnan amonný",
+"f": "NH4NO3",
+"kw": [
+"dusicnan amonny",
+"NH4NO3",
+"LAV"
+],
+"st": "s",
+"c": "#f7f7f2",
+"vz": "bílá sůl – dusíkaté hnojivo"
+},
+{
+"n": "Síran draselný",
+"f": "K2SO4",
+"kw": [
+"K2SO4",
+"siran draselny",
+"kainit"
+],
+"st": "s",
+"c": "#f6f6f2",
+"vz": "bílá sůl – draselné hnojivo"
+}
+]

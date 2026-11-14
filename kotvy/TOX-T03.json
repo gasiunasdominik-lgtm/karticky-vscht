@@ -1,0 +1,39 @@
+[
+{
+"n": "Oxid uhelnatý",
+"f": "CO",
+"kw": [
+"CO",
+"oxid uhelnaty",
+"karbonylhemoglobin"
+],
+"st": "g",
+"c": "#eef1f4",
+"vz": "bezbarvý plyn bez zápachu – váže hemoglobin"
+},
+{
+"n": "Kyanovodík / kyanid",
+"f": "HCN",
+"kw": [
+"CN",
+"kyanid",
+"kyanovodik"
+],
+"smi": "C#N",
+"st": "g",
+"c": "#eef2f4",
+"vz": "vůně hořkých mandlí – blokuje cytochromoxidázu"
+},
+{
+"n": "Dusitan",
+"f": "NO2-",
+"kw": [
+"NO2",
+"dusitan",
+"methemoglobin"
+],
+"st": "s",
+"c": "#f7f4e8",
+"vz": "tvoří methemoglobin"
+}
+]

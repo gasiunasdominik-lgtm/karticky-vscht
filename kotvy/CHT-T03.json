@@ -1,0 +1,83 @@
+[
+{
+"n": "Amoniak",
+"f": "NH3",
+"kw": [
+"NH3",
+"amoniak"
+],
+"smi": "N",
+"st": "g",
+"c": "#eef3f7",
+"vz": "bezbarvý štiplavý plyn"
+},
+{
+"n": "Kyselina dusičná",
+"f": "HNO3",
+"kw": [
+"HNO3",
+"kyselina dusicna"
+],
+"smi": "O[N+](=O)[O-]",
+"st": "l",
+"c": "#f6f0c9",
+"vz": "bezbarvá, na světle žloutne (NO₂)"
+},
+{
+"n": "Oxid dusičitý",
+"f": "NO2",
+"kw": [
+"NO2",
+"oxid dusicity"
+],
+"st": "g",
+"c": "#a8461c",
+"vz": "červenohnědý jedovatý plyn"
+},
+{
+"n": "Oxid dusnatý",
+"f": "NO",
+"kw": [
+"NO",
+"oxid dusnaty"
+],
+"st": "g",
+"c": "#eef2f6",
+"vz": "bezbarvý plyn, na vzduchu → NO₂"
+},
+{
+"n": "Močovina",
+"f": "CO(NH2)2",
+"kw": [
+"mocovina",
+"CO NH2"
+],
+"smi": "NC(N)=O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "bílé krystaly – hnojivo"
+},
+{
+"n": "Dusičnan amonný",
+"f": "NH4NO3",
+"kw": [
+"dusicnan amonny",
+"NH4NO3"
+],
+"st": "s",
+"c": "#f7f7f2",
+"vz": "bílá sůl – nad 400 °C exploduje"
+},
+{
+"n": "Magnetit (katalyzátor)",
+"f": "Fe3O4",
+"kw": [
+"magnetit",
+"Fe3O4",
+"alfa zelezo"
+],
+"st": "s",
+"c": "#262626",
+"vz": "černý magnetický oxid → α-Fe"
+}
+]

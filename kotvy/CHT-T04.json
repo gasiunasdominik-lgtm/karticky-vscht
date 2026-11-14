@@ -1,0 +1,57 @@
+[
+{
+"n": "Ropa",
+"f": "",
+"kw": [
+"ropa",
+"ropy",
+"rope"
+],
+"st": "l",
+"c": "#2b1d12",
+"vz": "hnědá až černá viskózní kapalina"
+},
+{
+"n": "Mazut",
+"f": "",
+"kw": [
+"mazut"
+],
+"st": "l",
+"c": "#141210",
+"vz": "černý zbytek atmosférické destilace"
+},
+{
+"n": "Propan",
+"f": "C3H8",
+"kw": [
+"propan"
+],
+"smi": "CCC",
+"st": "g",
+"c": "#e9eef3",
+"vz": "plyn z ropy (LPG)"
+},
+{
+"n": "n-Pentan",
+"f": "C5H12",
+"kw": [
+"n pentan"
+],
+"smi": "CCCCC",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "těkavá kapalina"
+},
+{
+"n": "Izopentan",
+"f": "C5H12",
+"kw": [
+"izopentan"
+],
+"smi": "CCC(C)C",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "izomer pentanu – dělí se superfrakcionací"
+}
+]

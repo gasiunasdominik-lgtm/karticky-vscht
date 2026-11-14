@@ -1,0 +1,77 @@
+[
+{
+"n": "Hematit",
+"f": "Fe2O3",
+"kw": [
+"hematit",
+"Fe2O3"
+],
+"st": "s",
+"c": "#8b2f1f",
+"vz": "červenohnědá železná ruda"
+},
+{
+"n": "Magnetit",
+"f": "Fe3O4",
+"kw": [
+"magnetit",
+"Fe3O4"
+],
+"st": "s",
+"c": "#262626",
+"vz": "černá magnetická ruda"
+},
+{
+"n": "Bauxit",
+"f": "",
+"kw": [
+"bauxit"
+],
+"st": "s",
+"c": "#a5532e",
+"vz": "červenohnědá hornina – ruda hliníku"
+},
+{
+"n": "Kryolit",
+"f": "Na3AlF6",
+"kw": [
+"kryolit",
+"Na3AlF6"
+],
+"st": "s",
+"c": "#f2f2ef",
+"vz": "bílý – tavidlo při elektrolýze Al"
+},
+{
+"n": "Oxid hlinitý",
+"f": "Al2O3",
+"kw": [
+"Al2O3",
+"oxid hlinity"
+],
+"st": "s",
+"c": "#fafafa",
+"vz": "bílý prášek"
+},
+{
+"n": "Chlorid titaničitý",
+"f": "TiCl4",
+"kw": [
+"TiCl4"
+],
+"st": "l",
+"c": "#eef0f2",
+"vz": "bezbarvá kapalina, na vzduchu dýmá"
+},
+{
+"n": "Cementit",
+"f": "Fe3C",
+"kw": [
+"Fe3C",
+"cementit"
+],
+"st": "s",
+"c": "#7a7a7a",
+"vz": "tvrdý karbid železa v oceli"
+}
+]

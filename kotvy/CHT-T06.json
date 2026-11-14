@@ -1,0 +1,47 @@
+[
+{
+"n": "Izooktan (oktanové číslo 100)",
+"f": "C8H18",
+"kw": [
+"izooktan",
+"trimetylpentan"
+],
+"smi": "CC(C)CC(C)(C)C",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "2,2,4-trimethylpentan"
+},
+{
+"n": "n-Heptan (oktanové číslo 0)",
+"f": "C7H16",
+"kw": [
+"heptan"
+],
+"smi": "CCCCCCC",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "klepe v motoru"
+},
+{
+"n": "n-Hexadekan (cetan, cetanové číslo 100)",
+"f": "C16H34",
+"kw": [
+"hexadekan",
+"cetan"
+],
+"smi": "CCCCCCCCCCCCCCCC",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "referenční látka pro naftu"
+},
+{
+"n": "Asfalt",
+"f": "",
+"kw": [
+"asfalt"
+],
+"st": "s",
+"c": "#151311",
+"vz": "černá lepivá hmota z vakuového zbytku"
+}
+]

@@ -1,0 +1,69 @@
+[
+{
+"n": "Síran barnatý",
+"f": "BaSO4",
+"kw": [
+"BaSO4"
+],
+"st": "s",
+"c": "#fbfbfb",
+"vz": "bílý nerozpustný – netoxický (kontrast)"
+},
+{
+"n": "Chlorid barnatý",
+"f": "BaCl2",
+"kw": [
+"BaCl2",
+"barnat",
+"Ba2"
+],
+"st": "s",
+"c": "#fbfbfb",
+"vz": "bílá rozpustná sůl – jed"
+},
+{
+"n": "Fluorovodík",
+"f": "HF",
+"kw": [
+"HF",
+"fluorovodik"
+],
+"smi": "F",
+"st": "g",
+"c": "#eef2f5",
+"vz": "leptá a váže Ca²⁺"
+},
+{
+"n": "Kyanid",
+"f": "CN-",
+"kw": [
+"kyanid",
+"CN"
+],
+"smi": "[C-]#N",
+"st": "s",
+"c": "#fbfbfb",
+"vz": "antidota: hydroxokobalamin, thiosíran, amylnitrit"
+},
+{
+"n": "Dusičnan stříbrný",
+"f": "AgNO3",
+"kw": [
+"AgNO3",
+"argyrie"
+],
+"st": "s",
+"c": "#fbfbfb",
+"vz": "bílé krystaly, kůže černá (Ag)"
+},
+{
+"n": "Thiosíran sodný",
+"f": "Na2S2O3",
+"kw": [
+"thiosiran"
+],
+"st": "s",
+"c": "#fbfbfb",
+"vz": "antidotum kyanidů"
+}
+]

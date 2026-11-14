@@ -1,0 +1,45 @@
+[
+{
+"n": "Aflatoxin B1",
+"f": "C17H12O6",
+"kw": [
+"aflatoxin"
+],
+"smi": "COC1=C2C3=C(C(=O)CC3)C(=O)OC2=C2C3C=COC3OC2=C1",
+"st": "s",
+"c": "#f4efd6",
+"vz": "plíseň Aspergillus – karcinogen jater"
+},
+{
+"n": "Botulotoxin",
+"f": "",
+"kw": [
+"botulotoxin",
+"botulin"
+],
+"st": "s",
+"c": "#f5f2ea",
+"vz": "bílkovina – nejjedovatější látka, blokuje acetylcholin"
+},
+{
+"n": "Tetanospasmin",
+"f": "",
+"kw": [
+"tetanospasmin",
+"tetanus"
+],
+"st": "s",
+"c": "#f5f2ea",
+"vz": "bílkovina – křeče"
+},
+{
+"n": "Saxitoxin",
+"f": "",
+"kw": [
+"saxitoxin"
+],
+"st": "s",
+"c": "#f5f2ea",
+"vz": "z řas (mušle) – blokuje Na⁺ kanály"
+}
+]

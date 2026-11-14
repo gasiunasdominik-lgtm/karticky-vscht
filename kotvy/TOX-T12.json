@@ -1,0 +1,94 @@
+[
+{
+"n": "Sarin (GB)",
+"f": "C4H10FO2P",
+"kw": [
+"sarin",
+"G latky"
+],
+"smi": "CC(C)OP(C)(=O)F",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "nervově paralytická látka – inhibuje AChE"
+},
+{
+"n": "VX",
+"f": "C11H26NO2PS",
+"kw": [
+"VX",
+"V latky"
+],
+"smi": "CCOP(C)(=O)SCCN(C(C)C)C(C)C",
+"st": "l",
+"c": "#efe6c9",
+"vz": "olejovitá, perzistentní"
+},
+{
+"n": "Yperit (sulfidický)",
+"f": "C4H8Cl2S",
+"kw": [
+"yperit"
+],
+"smi": "ClCCSCCCl",
+"st": "l",
+"c": "#d9c27a",
+"vz": "zpuchýřující látka, zápach hořčice"
+},
+{
+"n": "Lewisit",
+"f": "C2H2AsCl3",
+"kw": [
+"lewisit"
+],
+"smi": "ClC=C[As](Cl)Cl",
+"st": "l",
+"c": "#e6dfc9",
+"vz": "zpuchýřující, s arsenem – antidotum BAL"
+},
+{
+"n": "Fosgen",
+"f": "CCl2O",
+"kw": [
+"fosgen"
+],
+"smi": "O=C(Cl)Cl",
+"st": "g",
+"c": "#eef2f5",
+"vz": "dusivá látka, zápach shnilého sena"
+},
+{
+"n": "Atropin",
+"f": "C17H23NO3",
+"kw": [
+"atropin"
+],
+"smi": "CN1C2CCC1CC(C2)OC(=O)C(CO)c1ccccc1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "antidotum – blokuje muskarinové receptory"
+},
+{
+"n": "Acetylcholin",
+"f": "C7H16NO2+",
+"kw": [
+"acetylcholin",
+"AChE"
+],
+"smi": "CC(=O)OCC[N+](C)(C)C",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "neuropřenašeč – hromadí se při otravě"
+},
+{
+"n": "CS (slzný plyn)",
+"f": "C10H5ClN2",
+"kw": [
+"CS",
+"slzn"
+],
+"smi": "N#CC(C#N)=Cc1ccccc1Cl",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "dráždivá látka"
+}
+]

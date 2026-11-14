@@ -1,0 +1,72 @@
+[
+{
+"n": "Síra",
+"f": "S8",
+"kw": [
+"sira",
+"siry",
+"Clausuv"
+],
+"st": "s",
+"c": "#f2d200",
+"vz": "žlutá krystalická látka"
+},
+{
+"n": "Sulfan (sirovodík)",
+"f": "H2S",
+"kw": [
+"H2S",
+"sulfan"
+],
+"smi": "S",
+"st": "g",
+"c": "#eef1e4",
+"vz": "bezbarvý, zápach zkažených vajec"
+},
+{
+"n": "Oxid siřičitý",
+"f": "SO2",
+"kw": [
+"SO2"
+],
+"smi": "O=S=O",
+"st": "g",
+"c": "#eef1f4",
+"vz": "bezbarvý štiplavý plyn"
+},
+{
+"n": "Oxid sírový",
+"f": "SO3",
+"kw": [
+"SO3"
+],
+"smi": "O=S(=O)=O",
+"st": "s",
+"c": "#f7f7f7",
+"vz": "bílé krystaly / bezbarvá kapalina"
+},
+{
+"n": "Kyselina sírová",
+"f": "H2SO4",
+"kw": [
+"H2SO4",
+"kyselina sirova",
+"oleum"
+],
+"smi": "OS(=O)(=O)O",
+"st": "l",
+"c": "#f6f6f1",
+"vz": "olejovitá bezbarvá kapalina"
+},
+{
+"n": "Oxid vanadičný (katalyzátor)",
+"f": "V2O5",
+"kw": [
+"V2O5",
+"vanad"
+],
+"st": "s",
+"c": "#d98a1a",
+"vz": "oranžový prášek"
+}
+]

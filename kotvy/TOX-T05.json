@@ -1,0 +1,49 @@
+[
+{
+"n": "Paracetamol",
+"f": "C8H9NO2",
+"kw": [
+"paracetamol",
+"acetaminofen"
+],
+"smi": "CC(=O)Nc1ccc(O)cc1",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "bílé tablety"
+},
+{
+"n": "NAPQI",
+"f": "C8H7NO2",
+"kw": [
+"NAPQI"
+],
+"smi": "CC(=O)N=C1C=CC(=O)C=C1",
+"st": "s",
+"c": "#f6efd0",
+"vz": "toxický metabolit paracetamolu"
+},
+{
+"n": "Glutathion",
+"f": "C10H17N3O6S",
+"kw": [
+"glutathion",
+"GSH"
+],
+"smi": "NC(CCC(=O)NC(CS)C(=O)NCC(=O)O)C(=O)O",
+"st": "s",
+"c": "#fbfbf8",
+"vz": "tripeptid – vychytává NAPQI"
+},
+{
+"n": "Ethanol",
+"f": "C2H6O",
+"kw": [
+"ethanol",
+"alkohol"
+],
+"smi": "CCO",
+"st": "l",
+"c": "#f3f6f8",
+"vz": "bezbarvá kapalina"
+}
+]

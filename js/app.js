@@ -67,7 +67,6 @@ let syncing = false, pushT = null, lastPull = 0;
 function syncLabel(t) { $('syncChip').textContent = t; }
 function syncState() {
   const c = syncCfg();
-  $('syncHint').hidden = !!c;
   if (!c) return syncLabel('jen v zařízení');
   if (!navigator.onLine) return syncLabel(dirty.size ? `offline · ${dirty.size} čeká` : 'offline');
   syncLabel(dirty.size ? `${dirty.size} čeká na odeslání` : '☁️ synchronizováno');

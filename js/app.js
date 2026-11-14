@@ -130,7 +130,7 @@ async function syncNow(manual) {
     const changed = await pull(cfg);
     await push(cfg);
     persist();
-    if (changed && !S) refresh();
+    if (changed) refresh();
     syncState();
     if (manual) toast('Synchronizováno');
   } catch (e) {
@@ -144,39 +144,6 @@ function schedulePush() { syncState(); clearTimeout(pushT); pushT = setTimeout((
 // ---------- výpočty kartiček
 const today = () => dayNum();
 const weekNow = () => Math.floor((today() - W1) / 7) + 1;
-function nextTest(s, from) { let best = null; for (const t of DATA.tests) { if (t.s !== s) continue; const d = isoToDay(t.d); if (d >= from && (!best || d < best.day)) best = { day: d, n: t.n }; } return best; }
-function unlocked(c) {
-  if (c.d === '9') { if (set.dopl || weekNow() >= 15) return true; const ex = EXAM[c.s]; return ex ? isoToDay(ex) - today() <= 21 : false; }
-  return c.w <= weekNow() + (set.ahead ? 1 : 0);
-}
-const testRank = c => { const t = nextTest(c.s, today()); return t ? t.day : 99999; };
-const Rnow = (r, td) => Rof(Math.max(0, td - r[0]), r[1]);
-const newToday = () => (log[dayIso(today())] || [0, 0, 0])[2];
-const newLeft = () => Math.max(0, set.newPerDay - newToday());
-function pools(filter) {
-  const td = today(), due = [], fresh = [];
-  for (const c of CARDS) {
-    if (filter && !filter(c)) continue;
-    const r = srs[c.id];
-    if (r) { if (r[5] <= td) due.push(c); } else if (unlocked(c)) fresh.push(c);
-  }
-  due.sort((a, b) => testRank(a) - testRank(b) || Rnow(srs[a.id], td) - Rnow(srs[b.id], td));
-  fresh.sort((a, b) => a.w - b.w || testRank(a) - testRank(b));
-  return { due, fresh };
-}
-function schedIvl(st, c, g) {
-  let iv = g === 1 ? 1 : Math.max(1, Math.round(ivlOf(st.S, set.ret)));
-  if (iv > 4) { const h = parseInt(c.id.slice(0, 4), 16) / 65535; iv = Math.round(iv * (0.95 + 0.1 * h)); }
-  iv = Math.min(iv, MAXIVL);
-  if (set.test) { const t = nextTest(c.s, today() + 1); if (t) { const lim = t.day - 1 - today(); if (lim >= 1 && iv > lim && lim >= Math.min(3, iv)) iv = lim; } }
-  return iv;
-}
-const toSt = r => r ? { last: r[0], S: r[1], D: r[2], reps: r[3], lapses: r[4] } : null;
-function topicStats(t) {
-  let n = 0, due = 0, fresh = 0, lock = 0, known = 0, lap = 0, reps = 0; const td = today();
-  for (const c of CARDS) { if (c.t !== t) continue; n++; const r = srs[c.id]; if (r) { if (r[5] <= td) due++; if (r[1] >= 21) known++; lap += r[4]; reps += r[3]; } else if (unlocked(c)) fresh++; else lock++; }
-  return { n, due, fresh, lock, known, lap, reps };
-}
 
 // ---------- plán semestru
 const semWeek = () => Math.min(22, Math.max(1, weekNow()));
@@ -210,10 +177,10 @@ function undoBulk(bulk) { const now = Date.now(); for (const id of bulk.ids) don
 function inCamp() { const td = today(); return td >= isoToDay(SEM.camp[0]) && td <= isoToDay(SEM.camp[1]); }
 
 // ---------- sekce
-const TABS = ['ucit', 'mapa', 'plan', 'vic', 'tyden', 'karticky', 'predmety'];   // stará obrazovka Dnes je skrytá (výchozí je Učit)
+const TABS = ['ucit', 'mapa', 'plan', 'vic', 'predmety'];   // staré obrazovky (Dnes, Týden, Kartičky) jsou odstraněné, výchozí je Učit
 let TAB = 'ucit', KSEG = ls.get('k_seg', 'opak');
 function go(tab) {
-  if (tab === 'dnes') tab = 'ucit';
+  if (!TABS.includes(tab)) tab = 'ucit';
   TAB = tab;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
   document.querySelectorAll('nav.dock button').forEach(b => b.toggleAttribute('aria-current', false));
@@ -224,9 +191,6 @@ function go(tab) {
 function refresh() {
   if (!DATA || !SEM) return;
   renderHeader();
-  if (TAB === 'dnes') renderDnes();
-  if (TAB === 'tyden') renderTyden();
-  if (TAB === 'karticky') renderKarticky();
   if (TAB === 'ucit') renderUcit();
   if (TAB === 'mapa') renderMapa();
   if (TAB === 'plan') renderPlan();
@@ -235,206 +199,7 @@ function refresh() {
 }
 function renderHeader() {
   const wk = weekNow(); $('wkChip').textContent = inCamp() ? 'soustředění' : wk >= 1 && wk <= 14 ? `${wk}. týden` : wk > 14 ? 'zkouškové' : 'před semestrem';
-  const { due, fresh } = pools(); const n = due.length + Math.min(newLeft(), fresh.length);
-  $('badge').hidden = true; $('badge').textContent = n;
   syncState();
-}
-
-// ----- DNES
-function renderNow() {
-  const box = $('nowCard'); box.textContent = '';
-  const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
-  const put = (small, strong, how, after) => { box.append(el('small', null, small), el('strong', null, strong)); if (how) box.appendChild(el('span', 'how', how)); if (after) box.appendChild(el('span', 'after', after)); };
-  if (inCamp()) return put('Soustředění', 'Kartičky a audio', 'Nové listy neplánuj. Opakuj kartičky na cestách, nové jen polovinu.');
-  if (m >= 21 * 60 + 20 || m < 6 * 60 + 20) return put('Teď', 'Spánek (21:20–6:20)', 'Ráno se sem podívej, co je na řadě.');
-  const bl = SEM.rezim[((now.getDay() + 6) % 7) + 1] || [];
-  const cur = bl.find(b => mins(b.a) <= m && m < mins(b.b)), nxt = bl.find(b => mins(b.a) > m);
-  const show = cur || nxt;
-  if (!show) return put('Teď', 'Volno');
-  put(`${cur ? 'Teď' : 'Za chvíli'} · ${show.a}–${show.b}`, show.co, show.jak, cur && nxt ? `Potom ${nxt.a}: ${nxt.co}` : '');
-}
-let selDay = ((new Date().getDay() + 6) % 7) + 1;
-function renderSched() {
-  const realDay = ((new Date().getDay() + 6) % 7) + 1, DNY = ['', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
-  const ch = $('dayChips'); ch.textContent = '';
-  for (let i = 1; i <= 7; i++) { const b = el('button', 'chip', DNY[i] + (i === realDay ? ' · dnes' : '')); b.type = 'button'; b.setAttribute('aria-pressed', String(i === selDay)); b.onclick = () => { selDay = i; renderSched(); }; ch.appendChild(b); }
-  const now = new Date(), m = now.getHours() * 60 + now.getMinutes(), ol = $('sched'); ol.textContent = '';
-  for (const b of SEM.rezim[selDay] || []) {
-    const li = el('li', b.t); if (selDay === realDay && mins(b.a) <= m && m < mins(b.b)) li.classList.add('cur'); else if (selDay === realDay && mins(b.b) <= m) li.classList.add('gone');
-    li.append(el('span', 'tm', `${b.a}–${b.b}`), el('span', 'co', b.co)); if (b.jak) li.appendChild(el('span', 'jak', b.jak)); ol.appendChild(li);
-  }
-}
-function renderDnes() {
-  const td = today();
-  renderNow();
-  $('dTitle').textContent = `Dnes · ${fmtDW(td)}`;
-  const { due, fresh } = pools(); const nNew = Math.min(newLeft(), fresh.length);
-  $('hDue').textContent = due.length; $('hNew').textContent = nNew; $('hDone').textContent = (log[dayIso(td)] || [0])[0];
-  $('dEta').textContent = due.length + nNew ? `asi ${Math.max(1, Math.round((due.length * 8 + nNew * 20) / 60))} min` : '';
-  $('startAll').disabled = due.length + nNew === 0; $('startAll').textContent = due.length + nNew ? `Začít kartičky (${due.length + nNew})` : 'Kartičky na dnes hotové';
-  const backlog = fresh.length - nNew;
-  $('hNote').textContent = backlog > 0 ? `Odemčených nových čeká ještě ${backlog} – víc nových za den nastavíš ve Víc.` : '';
-  // týden
-  const w = SEM.tydny.find(x => x.n === semWeek()); const gs = weekGroups(w);
-  let all = 0, ok = 0; const open = [];
-  for (const g of gs) for (const it of g.items) { all++; if (isDone(it[0])) ok++; else open.push({ g, it }); }
-  const dm = fmtD(td).replace(/\s/g, ' ');
-  open.sort((a, b) => (b.it[1].includes(dm) - a.it[1].includes(dm)) || gRank(a.g) - gRank(b.g));
-  $('wkBar').style.width = (all ? ok / all * 100 : 0) + '%';
-  $('wkSum').textContent = all ? `${ok} z ${all} hotovo${open.length > 6 ? ` · ukazuju 6 nejdůležitějších z ${open.length}` : ''}` : 'Tento týden nic naplánováno.';
-  const ul = $('dWeek'); ul.textContent = '';
-  for (const { g, it } of open.slice(0, 6)) ul.appendChild(todoItem(it[0], it[1], g.h.replace(/^\S+\s/, '') + (it[2] ? ' · ' + it[2] : ''), () => setTimeout(renderDnes, 350)));
-  if (all && !open.length) ul.appendChild(el('li', 'empty', 'Všechno z tohoto týdne je hotové.'));
-  // opakování listů
-  // jen poslední 3 dny – starší zpoždění by seznam zahltilo (kartičky je stejně pokrývají)
-  const rAll = revDue(), t = dayIso(td), cut = dayIso(td - 3);
-  const rd = rAll.filter(p => p.date >= cut), old = rAll.filter(p => p.date < cut);
-  $('revSum').textContent = rd.length ? `${rd.length} na dnes` : '';
-  const ru = $('dRev'); ru.textContent = '';
-  for (const p of rd.slice(0, 6)) ru.appendChild(todoItem('r-' + p.date + p.id + p.typ, `${p.id} ${p.tema}`, p.typ + (p.date < t ? ` · od ${+p.date.slice(8, 10)}. ${+p.date.slice(5, 7)}.` : ''), () => setTimeout(renderDnes, 350), p.subj));
-  if (!rd.length) { const nx = SEM.plan.find(p => p.date > t); ru.appendChild(el('li', 'empty', nx ? `Dnes nic. Další ${+nx.date.slice(8, 10)}. ${+nx.date.slice(5, 7)}.: ${nx.id}` : 'Dnes nic.')); }
-  else if (rd.length > 6) ru.appendChild(el('li', 'empty', `+ ${rd.length - 6} dalších`));
-  if (old.length) {
-    // dvojí klepnutí – jedno omylem nic neodškrtne
-    const li = el('li', 'empty'), b = el('button', 'link', `Odškrtnout ${old.length} starších (zpoždění z minulých dní)`); b.type = 'button';
-    let armed = null;
-    b.onclick = () => {
-      if (!armed) { b.textContent = `Opravdu odškrtnout ${old.length} položek? Klepni znovu`; armed = setTimeout(() => { armed = null; b.textContent = `Odškrtnout ${old.length} starších (zpoždění z minulých dní)`; }, 4000); return; }
-      clearTimeout(armed); const ts = Date.now(); for (const p of old) done['r-' + p.date + p.id + p.typ] = [true, ts]; dirty.add('done'); persist(); schedulePush(); renderDnes(); toast(`Odškrtnuto ${old.length} položek – vrátit jde hned pod seznamem`);
-    };
-    li.appendChild(b); ru.appendChild(li);
-  }
-  const bulk = lastBulk();
-  if (bulk) {
-    const li = el('li', 'empty'), b = el('button', 'link', `↶ Vrátit hromadné odškrtnutí ${bulk.ids.length} položek (${bulk.when})`); b.type = 'button';
-    b.onclick = () => { undoBulk(bulk); renderDnes(); toast(`Vráceno ${bulk.ids.length} položek`); };
-    li.appendChild(b); ru.appendChild(li);
-  }
-  // termíny
-  const evb = $('dEv'); evb.textContent = '';
-  for (const e of SEM.ev.filter(e => isoToDay(e[0]) >= td).slice(0, 4)) {
-    const r = el('div', 'li'), nm = el('span', 'nm'), d = isoToDay(e[0]) - td;
-    nm.append(tag(e[1]), e[2]); nm.appendChild(el('small', null, `${fmtDW(isoToDay(e[0]))} · ${inDays(d)}`));
-    r.append(nm, el('span', 'num note', d <= 7 ? `${d} d` : '')); evb.appendChild(r);
-  }
-  if ($('schedBox').open) renderSched();
-}
-
-// ----- TÝDEN
-let wkSel = null;
-const openG = new Set(ls.get('k_openG', []));
-function renderTyden() {
-  if (wkSel == null) wkSel = semWeek();
-  const w = SEM.tydny.find(x => x.n === wkSel); const box = $('weekGroups'); box.textContent = '';
-  if (!w) { $('wkTitle').textContent = 'mimo semestr'; return; }
-  const od = isoToDay(w.od), dd = isoToDay(w.do);
-  $('wkTitle').textContent = `${w.n > 14 ? 'zkouškové · ' : ''}${w.n}. týden · ${fmtD(od)}–${fmtD(dd)}${w.camp ? ' · soustředění' : ''}${w.n === semWeek() ? ' · teď' : ''}`;
-  let all = 0, ok = 0;
-  for (const g of weekGroups(w)) {
-    const okG = g.items.filter(it => isDone(it[0])).length; all += g.items.length; ok += okG;
-    const d = el('details', 'grp'); const key = w.n + g.h;
-    d.open = openG.has(key) || (okG < g.items.length && gRank(g) <= 2);
-    d.addEventListener('toggle', () => { d.open ? openG.add(key) : openG.delete(key); ls.set('k_openG', [...openG]); });
-    const sm = el('summary'); sm.append(el('b', null, g.h), el('span', 'cnt' + (okG === g.items.length ? ' full' : ''), `${okG}/${g.items.length}`)); if (g.kdy) sm.appendChild(el('small', null, g.kdy));
-    const ul = el('ul', 'todo');
-    for (const [id, t, m] of g.items) ul.appendChild(todoItem(id, t, m, renderTydenCounts));
-    d.append(sm, ul); box.appendChild(d);
-  }
-  $('wkBar2').style.width = (all ? ok / all * 100 : 0) + '%';
-  $('wkProg').textContent = `Hotovo ${ok} z ${all}`;
-}
-function renderTydenCounts() { const sY = window.scrollY; renderTyden(); window.scrollTo({ top: sY }); }
-
-// ----- KARTIČKY
-function renderKarticky() {
-  document.querySelectorAll('#kSeg button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.k === KSEG)));
-  document.querySelectorAll('section[data-tab="karticky"] > [data-k]').forEach(p => p.hidden = p.dataset.k !== KSEG);
-  if (KSEG === 'opak') { renderPick(); renderDecks(); }
-  if (KSEG === 'temata') renderTopics();
-  if (KSEG === 'stat') renderStats();
-}
-function renderPick() {
-  const box = $('studyPick'); box.textContent = '';
-  const add = (label, sub, fn) => { const b = el('button', 'li'); b.type = 'button'; const nm = el('span', 'nm', label); nm.appendChild(el('small', null, sub)); b.append(nm, el('span', 'c-due', '›')); b.onclick = fn; box.appendChild(b); };
-  const { due, fresh } = pools();
-  add('Vše na dnes', `${due.length} opakování + ${Math.min(newLeft(), fresh.length)} nových`, () => startSession(null, false, 'Vše na dnes'));
-  for (const s of SUBJS) {
-    const p = pools(c => c.s === s); const n = p.due.length + Math.min(newLeft(), p.fresh.length); if (!n) continue;
-    add(SUBJN[s], `${p.due.length} opakování + ${Math.min(newLeft(), p.fresh.length)} nových`, () => startSession(c => c.s === s, false, SUBJN[s]));
-  }
-  add('Jen filozofie témat', 'odemčené karty typu Filozofie, procvičení bez vlivu na plán', () => startSession(c => c.y === 'F' && (srs[c.id] || unlocked(c)), true, 'Filozofie'));
-}
-function renderDecks() {
-  const td = today(), box = $('decks'); box.textContent = '';
-  for (const dk of Object.keys(DECKN)) {
-    const cs = CARDS.filter(c => c.d === dk); let du = 0, nw = 0, lock = 0, known = 0;
-    for (const c of cs) { const r = srs[c.id]; if (r) { if (r[5] <= td) du++; if (r[1] >= 21) known++; } else if (unlocked(c)) nw++; else lock++; }
-    const b = el('button', 'li'); b.type = 'button'; const nm = el('span', 'nm', DECKN[dk]);
-    nm.appendChild(el('small', null, `${cs.length} kartiček · ${known} pevně v paměti`));
-    const bar = el('div', 'bar'); const bi = el('i'); bi.style.width = (cs.length ? known / cs.length * 100 : 0) + '%'; bar.appendChild(bi); nm.appendChild(bar);
-    const ct = el('span', 'counts'); ct.append(el('span', 'c-due', du), el('span', 'c-new', Math.min(nw, newLeft())), el('span', 'c-lock', lock));
-    b.append(nm, ct); b.onclick = () => startSession(c => c.d === dk, false, DECKN[dk]); box.appendChild(b);
-  }
-}
-let subjF = ls.get('k_subj', 'CHT');
-function renderTopics() {
-  const ch = $('subjChips'); ch.textContent = '';
-  for (const s of SUBJS) { const b = el('button', 'chip', SUBJN[s]); b.type = 'button'; b.setAttribute('aria-pressed', String(s === subjF)); b.onclick = () => { subjF = s; ls.set('k_subj', s); renderTopics(); }; ch.appendChild(b); }
-  const box = $('topicList'); box.textContent = '';
-  for (const tp of TOPICS.filter(t => t.s === subjF)) {
-    const st = topicStats(tp.t); const d = el('details', 'fz'); const sm = el('summary');
-    const lk = st.lock === st.n;
-    sm.append(el('b', null, tp.t + ' '), tp.tn, el('span', 'note', ` · ${tp.w < 99 ? tp.w + '. týden' : 'bez týdne'} · ${lk ? 'zamčeno' : `${st.known}/${st.n} v paměti`}${st.due ? ` · ${st.due} k opakování` : ''}`));
-    d.appendChild(sm);
-    d.addEventListener('toggle', () => {
-      if (!d.open || d.dataset.f) return; d.dataset.f = 1;
-      const body = el('div', 'fzq');
-      const bar = el('div', 'bar'); const bi = el('i'); bi.style.width = (st.known / st.n * 100) + '%'; bar.appendChild(bi); body.appendChild(bar);
-      const fz = CARDS.filter(c => c.t === tp.t && c.y === 'F');
-      if (fz.length) { body.appendChild(el('h3', null, 'Filozofie tématu')); for (const c of fz) { const x = el('div'); x.append(el('b', null, c.q), c.a); body.appendChild(x); } }
-      const row = el('div', 'row');
-      const b1 = el('button', 'ghost', 'Procvičit téma'); b1.type = 'button'; b1.onclick = () => startSession(c => c.t === tp.t && c.d !== '9', true, tp.t);
-      const b2 = el('button', 'ghost', 'Opakovat podle plánu'); b2.type = 'button'; b2.disabled = !(st.due || st.fresh); b2.onclick = () => startSession(c => c.t === tp.t, false, tp.t);
-      row.append(b1, b2); body.appendChild(row); d.appendChild(body);
-    });
-    box.appendChild(d);
-  }
-}
-function renderStats() {
-  const td = today();
-  let tot = 0, ag = 0, days = 0; for (let i = 0; i < 28; i++) { const L = log[dayIso(td - i)]; if (L && L[0]) { tot += L[0]; ag += L[1]; days++; } }
-  let streak = 0; for (let i = 0; i < 400; i++) { const L = log[dayIso(td - i)]; if (L && L[0]) streak++; else if (i === 0) continue; else break; }
-  const inMem = Object.values(srs).filter(r => r[1] >= 21).length, started = Object.keys(srs).length;
-  const k = $('kpis'); k.textContent = '';
-  for (const [l, v, s] of [['Hotovo dnes', (log[dayIso(td)] || [0])[0], ''], ['Úspěšnost 28 d', tot ? Math.round(100 * (1 - ag / tot)) + ' %' : '–', `${tot} hodnocení`], ['Rozjeto / v paměti', `${started} / ${inMem}`, `z ${CARDS.length}`], ['Série', streak + ' d', 'dny v řadě s opakováním']]) {
-    const x = el('div', 'kpi'); x.append(el('span', 'l', l), el('span', 'v', v)); if (s) x.appendChild(el('span', 'note', s)); k.appendChild(x);
-  }
-  const fc = new Array(14).fill(0); for (const r of Object.values(srs)) { const i = Math.max(0, r[5] - td); if (i < 14) fc[i]++; }
-  const w = 600, h = 160, L = 36, R = 6, T = 10, B = 22, ih = h - T - B, iw = w - L - R, mx = Math.max(5, ...fc), nice = Math.ceil(mx / 5) * 5; let g = '';
-  for (let q = 0; q <= 4; q++) { const y = T + ih - ih * q / 4; g += `<line x1="${L}" x2="${w - R}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L - 6}" y="${y + 3}" text-anchor="end">${Math.round(nice * q / 4)}</text>`; }
-  const bw = iw / 14; fc.forEach((v, i) => {
-    const bh = ih * v / nice, x = L + i * bw + bw * .15; const dd = new Date((td + i) * DAY);
-    g += `<rect x="${x}" y="${T + ih - bh}" width="${bw * .7}" height="${bh}" rx="2" fill="${i === 0 ? 'var(--accent)' : 'var(--chart)'}"><title>${fmtD(td + i)}: ${v}</title></rect><text x="${x + bw * .35}" y="${h - 7}" text-anchor="middle">${i === 0 ? 'dnes' : DN[dd.getUTCDay()]}</text>`;
-  });
-  $('fc').innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Předpověď opakování">${g}</svg>`;
-  const hb = $('heat'); hb.textContent = ''; const mxh = Math.max(20, ...Array.from({ length: 28 }, (_, i) => (log[dayIso(td - 27 + i)] || [0])[0]));
-  for (let i = 0; i < 28; i++) { const L2 = log[dayIso(td - 27 + i)] || [0, 0, 0]; const x = el('i'); if (L2[0]) x.style.background = `color-mix(in srgb, var(--good) ${25 + 75 * Math.min(1, L2[0] / mxh)}%, var(--chip))`; x.title = `${fmtD(td - 27 + i)}: ${L2[0]}`; hb.appendChild(x); }
-  $('heatMsg').textContent = days ? `${days} z 28 dní s opakováním.` : 'Zatím žádné opakování.';
-  let rows = ''; for (const s of SUBJS) {
-    let n = 0, un = 0, st = 0, kn = 0, du = 0;
-    for (const c of CARDS) { if (c.s !== s) continue; n++; const r = srs[c.id]; if (r) { st++; if (r[1] >= 21) kn++; if (r[5] <= td) du++; un++; } else if (unlocked(c)) un++; }
-    const t = nextTest(s, td);
-    rows += `<tr><td><span class="dot" style="background:var(--c-${s})"></span>${SUBJN[s]}</td><td class="n">${n}</td><td class="n">${un}</td><td class="n">${st}</td><td class="n">${kn}</td><td class="n">${du}</td><td class="n">${t ? fmtD(t.day) : '–'}</td></tr>`;
-  }
-  $('subjTbl').innerHTML = `<thead><tr><th>Předmět</th><th class="n">Karet</th><th class="n">Odemčeno</th><th class="n">Rozjeto</th><th class="n">V paměti</th><th class="n">Dnes</th><th class="n">Test</th></tr></thead><tbody>${rows}</tbody>`;
-  const wl = TOPICS.map(t => ({ ...t, ...topicStats(t.t) })).filter(t => t.reps >= 6).map(t => ({ ...t, rate: t.lap / t.reps })).sort((a, b) => b.rate - a.rate).slice(0, 6);
-  const wb = $('weak'); wb.textContent = '';
-  if (!wl.length) wb.appendChild(el('div', 'note', 'Ukáže se po prvních opakováních.'));
-  for (const t of wl) {
-    const r = el('div', 'li'), nm = el('span', 'nm'); const dot = el('span', 'dot'); dot.style.background = `var(--c-${t.s})`;
-    nm.append(dot, el('b', null, t.t + ' '), t.tn, el('small', null, `${Math.round(t.rate * 100)} % Znovu · ${t.reps} hodnocení`));
-    const b = el('button', 'ghost', 'Procvičit'); b.type = 'button'; b.onclick = () => startSession(c => c.t === t.t && c.d !== '9', true, t.t); r.append(nm, b); wb.appendChild(r);
-  }
 }
 
 // ----- PŘEDMĚTY
@@ -473,13 +238,6 @@ function renderPredmety() {
   if (sj) { const p = el('div', 'panel req'); p.append(el('h2', null, sj[1]), el('p', null, sj[2]), el('code', null, sj[3])); body.appendChild(p); }
   const td = today(), up = SEM.ev.filter(e => e[1] === s);
   body.appendChild(panel('Testy a termíny', up.length ? evTimeline(e => e[1] === s) : el('div', 'note', 'Žádné termíny.')));
-  // kartičky předmětu
-  const p = pools(c => c.s === s), cs = CARDS.filter(c => c.s === s), kn = cs.filter(c => srs[c.id] && srs[c.id][1] >= 21).length;
-  const kp = el('div', 'col'); const bar = el('div', 'bar big4'); const bi = el('i'); bi.style.width = (cs.length ? kn / cs.length * 100 : 0) + '%'; bar.appendChild(bi);
-  const row = el('div', 'row'); const b1 = el('button', 'ghost', `Opakovat (${p.due.length + Math.min(newLeft(), p.fresh.length)})`); b1.type = 'button'; b1.disabled = !(p.due.length || p.fresh.length); b1.onclick = () => startSession(c => c.s === s, false, SUBJN[s]);
-  const b2 = el('button', 'ghost', 'Témata'); b2.type = 'button'; b2.onclick = () => { subjF = s; ls.set('k_subj', s); KSEG = 'temata'; ls.set('k_seg', KSEG); go('karticky'); };
-  row.append(b1, b2); kp.append(el('div', 'note', `${cs.length} kartiček · ${kn} pevně v paměti · ${p.due.length} k opakování`), bar, row);
-  body.appendChild(panel('Kartičky', kp));
   const gets = SEM.get.filter(g => g[1] === s);
   if (gets.length) {
     const ul = el('ul', 'todo');
@@ -502,95 +260,11 @@ function renderVic() {
   for (const [id, t, m] of SEM.todo) ul.appendChild(todoItem(id, t, m, () => { $('todoSum').textContent = `${SEM.todo.filter(x => isDone(x[0])).length} z ${SEM.todo.length}`; }));
   $('todoSum').textContent = `${SEM.todo.filter(x => isDone(x[0])).length} z ${SEM.todo.length}`;
   if (!$('tahak').childElementCount) $('tahak').innerHTML = SEM.tahak;   // vlastní obsah z dashboardu (semestr.html)
-  $('sNew').value = set.newPerDay; $('sRet').value = String(set.ret); $('sAhead').checked = set.ahead; $('sDopl').checked = set.dopl; $('sTest').checked = set.test;
   const c = ls.get('k_sync', {}) || {};
   if (document.activeElement !== $('syUrl')) $('syUrl').value = c.url || '';
   if (document.activeElement !== $('syTok')) $('syTok').value = c.token || '';
-  const kt = $('kTopic'); if (!kt.options.length) for (const t of TOPICS) { const o = el('option', null, `${t.t} ${t.tn}`); o.value = t.t; kt.appendChild(o); }
-  $('genMsg').textContent = `${CARDS.length} kartiček (${DATA.gen}) a plán semestru (${SEM.gen}) ze složky 3_VŠCHT.`;
+  $('genMsg').textContent = `${UT.length} témat k učení (${UC && UC.gen || '?'}) a plán semestru (${SEM.gen}) ze složky 3_VŠCHT.`;
 }
-
-// ---------- opakování kartiček
-let S = null;
-function startSession(filter, cram, label) {
-  const td = today(); let queue;
-  if (cram) {
-    queue = CARDS.filter(filter).sort((a, b) => { const ra = srs[a.id], rb = srs[b.id]; return (ra ? Rnow(ra, td) : 0) - (rb ? Rnow(rb, td) : 0); }).slice(0, 60);
-  } else {
-    const { due, fresh } = pools(filter); const nw = fresh.slice(0, newLeft());
-    queue = []; let i = 0, j = 0;
-    while (i < due.length || j < nw.length) { for (let k = 0; k < 4 && i < due.length; k++) queue.push(due[i++]); if (j < nw.length) queue.push(nw[j++]); }
-  }
-  if (!queue.length) { toast('V tomto výběru teď nic není.'); return; }
-  S = { queue, cram, label, done: 0, cur: null, shown: false, hist: [], from: TAB };
-  go('study'); $('dock').hidden = true; $('gradesBar').hidden = false;
-  next();
-}
-function next() { if (!S.queue.length) { finish(); return; } S.cur = S.queue.shift(); S.shown = false; $('typeIn').value = ''; draw(); }
-const claudeUrl = q => 'https://claude.ai/new?q=' + encodeURIComponent(q);
-function aiLinks() {
-  const c = S.cur, typed = $('typeIn').value.trim();
-  $('typeBox').hidden = !ls.get('k_type', false) || !c;
-  $('typeBtn').hidden = S.shown;
-  $('typeBtn').textContent = $('typeBox').hidden ? 'Odpovědět vlastními slovy' : 'Bez psaní';
-  $('explBtn').hidden = !S.shown;
-  $('checkBtn').hidden = !S.shown || !typed;
-  if (!S.shown) return;
-  $('explBtn').href = claudeUrl(`Jsem student 1. ročníku VŠCHT (${SUBJN[c.s]}, téma ${c.t} ${c.tn}). Nejdéle mi trvá pochopit filozofii – proč to tak je a jak to zapadá do celku. Vysvětli mi česky a srozumitelně (max. 6 vět), proč platí tahle odpověď, z jakého principu plyne, a dej mi jednu pomůcku na zapamatování.\n\nOtázka: ${c.q}\nOdpověď: ${c.a}`);
-  if (typed) $('checkBtn').href = claudeUrl(`Jsi zkoušející na VŠCHT (1. ročník, ${SUBJN[c.s]}, téma ${c.t} ${c.tn}). Porovnej moji odpověď se správnou. Hodnoť věcnou správnost, ne styl. Řekni verdikt (správně / částečně / špatně), co chybí nebo je špatně, a doporuč hodnocení 1–4 (1 Znovu, 2 Těžké, 3 Dobře, 4 Snadno).\n\nOtázka: ${c.q}\nSprávná odpověď: ${c.a}\nMoje odpověď: ${typed}`);
-}
-function draw() {
-  const c = S.cur, r = srs[c.id];
-  $('card').style.setProperty('--cs', `var(--c-${c.s})`);
-  const m = $('cMeta'); m.textContent = '';
-  if (TYPN[c.y]) m.appendChild(el('span', 'typ', TYPN[c.y]));
-  m.appendChild(el('span', null, `${c.t} · ${c.tn}`));
-  m.appendChild(el('span', 'chip', S.cram ? 'procvičování' : r ? 'opakování' : 'nová'));
-  $('cQ').textContent = c.q; $('cA').textContent = c.a; $('cA').hidden = !S.shown; $('cHint').hidden = S.shown;
-  $('prog').style.width = (S.done / Math.max(1, S.done + S.queue.length + 1) * 100) + '%';
-  $('left').textContent = S.queue.length + 1; $('undo').disabled = !S.hist.length;
-  $('aiRow').hidden = false; aiLinks();
-  const g = $('grades'); g.textContent = '';
-  if (!S.shown) { const b = el('button', 'show', 'Ukázat odpověď'); b.type = 'button'; b.onclick = reveal; g.appendChild(b); return; }
-  const st = toSt(r);
-  [['Znovu', 1], ['Těžké', 2], ['Dobře', 3], ['Snadno', 4]].forEach(([n, gr]) => {
-    const b = el('button', 'g' + gr); b.type = 'button';
-    let lab;
-    if (S.cram) lab = gr <= 2 ? 'ještě jednou' : 'ok';
-    else if (gr === 1 || (!st && gr === 2)) lab = 'za chvíli';
-    else lab = fmtIvl(schedIvl(nextState(st, gr, today()), c, gr));
-    b.append(el('span', null, n), el('small', null, lab)); b.onclick = () => grade(gr); g.appendChild(b);
-  });
-}
-function reveal() { if (!S || S.shown || !S.cur) return; S.shown = true; draw(); }
-function grade(g) {
-  const c = S.cur, td = today();
-  S.hist.push({ c, prev: srs[c.id] ? [...srs[c.id]] : null, log: JSON.stringify(log[dayIso(td)] || null), q: S.queue.slice(), done: S.done });
-  if (S.cram) { if (g <= 2) S.queue.splice(Math.min(3, S.queue.length), 0, c); }
-  else {
-    const prev = srs[c.id], wasNew = !prev, ns = nextState(toSt(prev), g, td);
-    const relearn = g === 1 || (wasNew && g === 2);
-    const iv = relearn ? 0 : schedIvl(ns, c, g);
-    srs[c.id] = [ns.last, +ns.S.toFixed(3), +ns.D.toFixed(3), ns.reps, ns.lapses, td + iv];
-    const k = dayIso(td), L = log[k] || [0, 0, 0]; L[0]++; if (g === 1) L[1]++; if (wasNew) L[2]++; log[k] = L;
-    if (relearn) S.queue.splice(Math.min(g === 1 ? 3 : 6, S.queue.length), 0, c);
-    markDirty(c.id);
-  }
-  S.done++; next();
-}
-function undo() {
-  if (!S || !S.hist.length) return; const h = S.hist.pop();
-  if (!S.cram) { if (h.prev) srs[h.c.id] = h.prev; else delete srs[h.c.id]; const k = dayIso(today()), L = JSON.parse(h.log); if (L) log[k] = L; else delete log[k]; markDirty(h.c.id); }
-  S.queue = h.q; S.done = h.done; S.cur = h.c; S.shown = true; draw();
-}
-function finish() {
-  S.cur = null;
-  $('grades').textContent = ''; $('cMeta').textContent = ''; $('cA').hidden = true; $('cHint').hidden = true; $('aiRow').hidden = true; $('typeBox').hidden = true;
-  $('cQ').textContent = S.cram ? `Procvičeno: ${S.done} kartiček (${S.label}).` : `Hotovo – ${S.done} hodnocení. Další kartičky přijdou podle plánu.`;
-  const b = el('button', 'show', 'Zpět'); b.type = 'button'; b.onclick = endSession; $('grades').appendChild(b);
-  syncNow(false);
-}
-function endSession() { const from = S ? S.from : 'ucit'; S = null; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go(TABS.includes(from) ? from : 'ucit'); }
 
 // ---------- UČIT: jeden další krok · diagnostika · mapa znalostí · vrstvy V0–V4 (uceni.json + obsah/<ID>.json z build_uceni.py)
 // diag[tid] = { st, lv, h:[[den, id, g]], nx, up, ts } · st: 'B' nebráno · 'X' nerozumím · 1 neumím · 2 zhruba · 3 skoro · 4 umím
@@ -865,7 +539,6 @@ function renderPlan() {
   for (const s of SUBJS) { const v = debtMin(s); if (!v) continue; const r = el('div', 'pbar'); const i = el('i', null); i.style.width = Math.round(v / mx * 100) + '%'; i.style.background = `var(--c-${s})`; r.append(el('span', null, SUBJN[s]), el('div', 'track'), el('span', 'note', fmtMin(v))); r.children[1].appendChild(i); bars.appendChild(r); }
   pdl.append(bars, el('div', 'note', 'Dluh = kolik minut chybí, aby každé probrané téma bylo aspoň na své cílové vrstvě.'));
   box.appendChild(pdl);
-  const old = el('button', 'link', 'Starý týdenní přehled ›'); old.type = 'button'; old.onclick = () => go('tyden'); box.appendChild(old);
 }
 function go2(it, ctx) { if (it.mock) return startMock(it.mock); if (it.s.k === 'diag') startDiag(1, [it.t]); else if (it.s.k === 'rev') startLearn(it.t, ctx, true); else startLearn(it.t, ctx); }
 // žebřík vrstev (animovaný ukazatel, kde v tématu jsi)
@@ -1198,28 +871,8 @@ async function exportDiag() {
 
 // ---------- ovládání
 document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
-document.querySelectorAll('#kSeg button').forEach(b => b.onclick = () => { KSEG = b.dataset.k; ls.set('k_seg', KSEG); renderKarticky(); });
-$('startAll').onclick = () => startSession(null, false, 'Vše na dnes');
-$('back').onclick = endSession; $('undo').onclick = undo; $('card').onclick = reveal;
 $('syncChip').onclick = () => syncCfg() ? syncNow(true) : go('vic');
-$('schedBox').addEventListener('toggle', () => { if ($('schedBox').open) renderSched(); });
-$('wkPrev').onclick = () => { if (wkSel > 1) { wkSel--; renderTyden(); } };
-$('wkNext').onclick = () => { if (wkSel < Math.max(...SEM.tydny.map(w => w.n))) { wkSel++; renderTyden(); } };
-$('typeBtn').onclick = () => { const on = $('typeBox').hidden; ls.set('k_type', on); aiLinks(); if (on) $('typeIn').focus(); };
-$('typeIn').oninput = () => { if (S && S.shown) aiLinks(); };
-document.addEventListener('keydown', e => {
-  if (!S || !S.cur || ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
-  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!S.shown) reveal(); else grade(3); }
-  else if (S.shown && '1234'.includes(e.key)) grade(+e.key);
-  else if (e.key === 'z' || e.key === 'Z') undo();
-  else if (e.key === 'Escape') endSession();
-});
-const saveSet = () => { set.ts = Date.now(); dirty.add('meta'); persist(); schedulePush(); refresh(); toast('Uloženo'); };
-$('sNew').onchange = e => { set.newPerDay = Math.max(0, Math.min(200, +e.target.value || 0)); saveSet(); };
-$('sRet').onchange = e => { set.ret = +e.target.value; saveSet(); };
-$('sAhead').onchange = e => { set.ahead = e.target.checked; saveSet(); };
-$('sDopl').onchange = e => { set.dopl = e.target.checked; saveSet(); };
-$('sTest').onchange = e => { set.test = e.target.checked; saveSet(); };
+
 $('sySave').onclick = async () => {
   const url = $('syUrl').value.trim(), token = $('syTok').value.trim();
   if (!url || !token) { $('syMsg').textContent = 'Vyplň URL i token.'; return; }
@@ -1234,35 +887,31 @@ $('sySave').onclick = async () => {
   } catch (e) { $('syMsg').textContent = 'Spojení selhalo: ' + e.message + '. Zkontroluj URL (končí /exec), token a že nasazení má přístup „Kdokoli“.'; }
 };
 $('syNow').onclick = () => syncNow(true);
-$('kBtn').onclick = () => {
-  const t = $('kTopic').value, td = today(); let n = 0;
-  for (const c of CARDS) { if (c.t !== t || c.d === '9' || srs[c.id]) continue; const h = parseInt(c.id.slice(0, 4), 16); srs[c.id] = [td, 7, 5, 1, 0, td + 1 + (h % 7)]; n++; markDirty(c.id); }
-  $('kMsg').textContent = n ? `${t}: ${n} kartiček rozloženo do opakování na příštích 7 dní.` : `${t}: nic k přesunutí, všechny už jsou v plánu.`; refresh();
-};
 $('exBtn').onclick = () => {
-  const blob = new Blob([JSON.stringify({ v: 2, srs, log, set, done })], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ v: 3, diag, srs, log, set, done })], { type: 'application/json' });
   const a = el('a'); a.href = URL.createObjectURL(blob); a.download = `studium-zaloha-${dayIso(today())}.json`; document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); $('exMsg').textContent = 'Záloha stažena.';
 };
 $('imFile').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
-    const d = JSON.parse(await f.text()); if (!d.srs) throw new Error('bad'); let n = 0;
-    for (const [k, v] of Object.entries(d.srs)) { if (!BYID[k]) continue; const m = mergeRec(srs[k], v); if (m !== srs[k]) { srs[k] = m; n++; dirty.add('srs_' + shardOf(k)); } }
+    const d = JSON.parse(await f.text()); if (!d.srs && !d.diag) throw new Error('bad'); let n = 0, nd = 0;
+    for (const [k, v] of Object.entries(d.diag || {})) if (!diag[k] || (v.ts || 0) > (diag[k].ts || 0)) { diag[k] = v; nd++; }
+    if (nd) { ls.set('k_diag', diag); dirty.add('srs_DIAG'); }
+    for (const [k, v] of Object.entries(d.srs || {})) { if (!BYID[k]) continue; const m = mergeRec(srs[k], v); if (m !== srs[k]) { srs[k] = m; n++; dirty.add('srs_' + shardOf(k)); } }
     for (const [k, v] of Object.entries(d.log || {})) if (!log[k] || v[0] > log[k][0]) log[k] = v;
     for (const [k, v] of Object.entries(d.done || {})) if (!done[k] || v[1] > done[k][1]) done[k] = v;
-    dirty.add('meta'); dirty.add('done'); persist(); schedulePush(); refresh(); $('exMsg').textContent = `Obnoveno: ${n} kartiček.`;
+    dirty.add('meta'); dirty.add('done'); persist(); schedulePush(); refresh(); $('exMsg').textContent = `Obnoveno: ${nd} témat z mapy znalostí.`;
   } catch { $('exMsg').textContent = 'Soubor není záloha.'; }
   e.target.value = '';
 };
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (dirty.size) syncNow(false); }
-  else { if (Date.now() - lastPull > 60e3) syncNow(false); if (!S) refresh(); }
+  else { if (Date.now() - lastPull > 60e3) syncNow(false); if (!UQ) refresh(); }
 });
 window.addEventListener('online', () => syncNow(false));
 window.addEventListener('offline', syncState);
-window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (!S && TABS.includes(t) && t !== TAB) go(t); });
-setInterval(() => { if (TAB === 'dnes' && !S) renderNow(); }, 60e3);
+window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (!UQ && TABS.includes(t) && t !== TAB) go(t); });
 
 // ---------- start
 srs = ls.get('k_srs', {}); diag = ls.get('k_diag', {}); log = ls.get('k_log', {}); set = { ...set, ...ls.get('k_set', {}) }; done = ls.get('k_done', null);
@@ -1270,7 +919,7 @@ if (!done) { done = {}; for (const id of SEED_DONE) done[id] = [true, 1]; persis
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
   // nová verze appky: service worker se aktivuje sám (skipWaiting) → jednou přenačíst, ať je vidět hned
   const hadCtl = !!navigator.serviceWorker.controller; let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtl && !reloaded && !S && !UQ) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtl && !reloaded && !UQ) { reloaded = true; location.reload(); } });
   navigator.serviceWorker.register('./sw.js').then(r => { r.update(); document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update(); }); });
 }
 Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then(r => r.json()), fetch('uceni.json').then(r => r.json()).catch(() => null)]).then(([d, sm, uc]) => {

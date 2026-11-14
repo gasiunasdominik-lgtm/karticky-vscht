@@ -494,3 +494,12 @@ details>summary{transition:color .2s}
 .kb li{margin:2px 0}
 .kb li.cur{font-weight:600;background:color-mix(in srgb,var(--accent) 16%,transparent);border-radius:6px;padding:1px 4px;margin-left:-4px}
 @media (min-width:640px){.kbr{grid-template-columns:1fr 1fr}.kbr::before{display:none}.kb::before{display:none}.kbr{padding-left:0}}
+
+/* ---- šířka v16: nic nesmí roztáhnout stránku do strany (dlouhý <select> na Víc ji roztáhl na 1286 px → šlo oddálit mimo obsah) ---- */
+main,.col{grid-template-columns:minmax(0,1fr)}
+main>*,.col>*,section[data-tab]{min-width:0}
+select,input,textarea{min-width:0;max-width:100%}
+select{width:100%;text-overflow:ellipsis}
+.row>select,.row>input[type=text],.row>input[type=url]{flex:1 1 12em}
+html,body{overflow-x:hidden}
+@supports (overflow-x:clip){html,body{overflow-x:clip}}

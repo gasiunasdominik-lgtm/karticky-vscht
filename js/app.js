@@ -751,7 +751,7 @@ function dayPlan() {
 // ----- obrazovka Učit
 function renderUcit() {
   if (!UC) return;
-  const box = $('uMain'); box.textContent = '';
+  const box = $('uMain'); box.textContent = ''; box.classList.add('fresh'); delete box.dataset.si;
   if (UQ) return drawUQ();
   logDebt();
   const ctx = autoCtx(), p = plan(ctx);
@@ -812,7 +812,7 @@ function renderPlan() {
   if (!dp.length) pd.appendChild(el('p', 'note', 'Na dnešek už žádný učební blok nezbývá. Odpočívej.'));
   for (const x of dp) {
     const bl = el('div', 'pblock' + (x.cur ? ' cur' : ''));
-    const hd = el('div', 'row'); hd.append(el('span', 'ptime', `${x.b.a}–${x.b.b}`), el('span', 'pk ' + x.ctx.kde, KDEI[x.ctx.kde]), el('b', null, x.b.co.replace(/^\s*\p{Extended_Pictographic}\uFE0F?\s*/u, '')));
+    const hd = el('div', 'row'); hd.append(el('span', 'ptime', `${x.b.a}–${x.b.b}`), ...(() => { const co = x.b.co.replace(/^\s*\p{Extended_Pictographic}\uFE0F?\s*/u, ''); return co.toLowerCase().startsWith(KDEI[x.ctx.kde].toLowerCase()) ? [el('b', null, co)] : [el('span', 'pk ' + x.ctx.kde, KDEI[x.ctx.kde]), el('b', null, co)]; })());
     bl.appendChild(hd);
     const ul = el('div', 'list');
     if (!x.items.length) ul.appendChild(el('div', 'note', x.b.t === 'cesta' ? 'opakování v appce nebo odpočinek' : 'volno na cokoli z Mapy'));
@@ -988,6 +988,7 @@ function topBar(label, frac) {
 function btns(list) { const g = el('div', 'ugr'); for (const [lab, cls, fn] of list) { const b = el('button', cls, lab); b.type = 'button'; b.onclick = fn; g.appendChild(b); } return g; }
 function drawUQ() {
   const box = $('uMain'); box.textContent = '';
+  const si = `${UQ.mode}:${UQ.ti || 0}:${UQ.step || 0}:${UQ.i || 0}`; box.classList.toggle('fresh', box.dataset.si !== si); box.dataset.si = si;   // animace jen při novém kroku, ne při odkrytí odpovědi
   if (UQ.mode === 'diag') {
     const t = UQ.topics[UQ.ti], q = diagQ(t, UQ.step);
     box.appendChild(topBar(`${UQ.ti + 1}/${UQ.n}`, UQ.ti / UQ.n));
@@ -1081,7 +1082,7 @@ function learnDone() {
   blockResult(`${t.n}: ${ok}/${n} správně (potřeba ${Math.ceil(n * 2 / 3)})`, nxt, pass, bi);
 }
 function blockResult(head, txt, pass, bad = []) {
-  UQ = null; const box = $('uMain'); box.textContent = '';
+  UQ = null; const box = $('uMain'); box.textContent = ''; box.classList.add('fresh'); delete box.dataset.si;
   const c = el('div', 'card ucard ures ' + (pass ? 'ok' : 'ne')); c.append(el('div', 'meta', pass ? 'Kritérium bloku splněno ✓' : 'Kritérium bloku zatím nesplněno'), el('h2', null, head), el('p', null, txt));
   if (bad.length) { const ul = el('ul', 'ubad'); for (const b of bad) { const li = el('li'); li.append(el('b', null, b.l)); if (b.a) li.append(H('ubada', b.a)); ul.appendChild(li); } c.append(el('div', 'meta', 'Co nevyšlo – příště začneš tímhle'), ul); }
   box.appendChild(c); box.appendChild(btns([['Další krok', 'primary', () => renderUcit()]])); syncNow(false); window.scrollTo({ top: 0 });

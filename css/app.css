@@ -279,3 +279,173 @@ details.fold.panel>.ucont{margin-top:10px}
 .uex mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px;font-weight:600}
 .ucard .a.uans{border-top:none;margin-top:4px;padding:8px 12px;background:var(--good-soft);border-radius:8px}
 .ubad{margin:.3em 0;padding-left:18px}.ubad li{margin:.4em 0}.ubada{color:var(--muted);font-size:14px}
+
+/* =====================================================================
+   Vzhled v15 – klidný „editorial“ styl: teplý papír, karty bez rámečků s jemnou hloubkou,
+   téměř černá hlavní akce, jediný teplý akcent pro „teď“, plovoucí lišta na středu.
+   (Vrstva přebíjí starší pravidla výše; logiku a třídy nemění.)
+   ===================================================================== */
+:root{
+  --bg:#f5f3ef; --surface:#ffffff; --sunk:#efece6; --ink:#16161a; --muted:#6f6b64; --line:rgba(22,22,26,.08);
+  --accent:#c2502e; --accent-soft:#f6e3db; --on-accent:#ffffff;
+  --cta:#16161a; --on-cta:#ffffff;
+  --again:#b5402f; --hard:#a86a14; --good:#2f7a52; --easy:#2f5f86; --good-soft:#e5f0e8; --bad-soft:#f7e4df; --hard-soft:#f6ecd9;
+  --chip:#ebe8e2; --chart:#c2502e;
+  --sh-1:0 1px 0 rgba(22,22,26,.04),0 1px 2px rgba(22,22,26,.04);
+  --sh-2:0 1px 0 rgba(22,22,26,.03),0 2px 6px rgba(22,22,26,.04),0 12px 32px -16px rgba(22,22,26,.16);
+  --r:18px; --r-sm:12px;
+  --f-ui:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"Geist Mono",ui-monospace,Consolas,monospace;
+  --f-card:"Literata",Georgia,serif;
+  --c-MAT:#6b4fbf; --c-OAC:#1d7c8f; --c-OACC:#2f8f86; --c-CBV:#b8611e; --c-CHT:#3f7d3c; --c-TOX:#b5402f; --c-PCP:#4a5f99;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f0f11; --surface:#18181b; --sunk:#202024; --ink:#ededea; --muted:#9a968f; --line:rgba(255,255,255,.07);
+  --accent:#ee8a62; --accent-soft:#3a2219; --on-accent:#1a0e09;
+  --cta:#ededea; --on-cta:#121214;
+  --again:#e8806f; --hard:#e0aa5c; --good:#72c290; --easy:#7fb0dc; --good-soft:#15291d; --bad-soft:#2f1915; --hard-soft:#2d2313;
+  --chip:#26262b; --chart:#ee8a62;
+  --sh-1:0 0 0 1px rgba(255,255,255,.04);
+  --sh-2:0 0 0 1px rgba(255,255,255,.05),0 16px 40px -20px rgba(0,0,0,.8);
+  --c-MAT:#a893ec; --c-OAC:#62c0d1; --c-OACC:#6fcfc2; --c-CBV:#e9a065; --c-CHT:#86c483; --c-TOX:#e8806f; --c-PCP:#9db0e6;
+}}
+body{font:15px/1.55 var(--f-ui);letter-spacing:-.005em;-webkit-font-smoothing:antialiased;padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+body::before{background:color-mix(in srgb,var(--bg) 82%,transparent)}
+::selection{background:var(--accent-soft)}
+
+/* hlavička: průsvitná, bez čáry */
+header.top{background:color-mix(in srgb,var(--bg) 82%,transparent);-webkit-backdrop-filter:saturate(1.4) blur(18px);backdrop-filter:saturate(1.4) blur(18px);border-bottom:1px solid transparent}
+header.top .wrap{padding-block:14px 12px}
+.brand{font:650 18px/1 var(--f-ui);letter-spacing:-.025em}
+.stack{grid-template-rows:repeat(3,3px);gap:3px;width:16px}
+.stack i{background:var(--ink);border-radius:2px}.stack i:nth-child(1){background:var(--accent)}
+.chip{font:500 12px/1 var(--f-ui);background:var(--surface);color:var(--muted);padding:7px 11px;box-shadow:var(--sh-1)}
+button.chip[aria-pressed="true"]{background:var(--cta);color:var(--on-cta)}
+
+/* typografie: bez verzálek, těsnější nadpisy */
+h2{font:650 19px/1.25 var(--f-ui);letter-spacing:-.02em}
+h3,th,.big span,.now small,.kolej{text-transform:none;letter-spacing:0}
+h3{font:600 13px/1.2 var(--f-ui);color:var(--muted)}
+.note{color:var(--muted)}
+main{padding-block:8px 16px;gap:14px}
+
+/* povrchy */
+.panel,details.grp,.unow,.card,.kpi{border:0;box-shadow:var(--sh-1)}
+.panel{border-radius:var(--r);padding:18px}
+details.grp{border-radius:var(--r);padding:0 16px}
+details.grp[open] summary{border-bottom-color:var(--line)}
+.kpi{background:var(--surface);border-radius:var(--r-sm)}
+.card{border-radius:var(--r);border-top:0;padding:22px 20px;box-shadow:var(--sh-2)}
+.unow{border-radius:22px;padding:22px 20px;gap:12px;box-shadow:var(--sh-2)}
+.unow h2{font:650 22px/1.22 var(--f-ui);letter-spacing:-.025em}
+.ubig{font:650 20px/1.25 var(--f-ui);letter-spacing:-.02em}
+.list,.li,.urow,.todo li,.pblock,.ptest,th,td,details.fz{border-color:var(--line)}
+
+/* tlačítka */
+.primary{background:var(--cta);color:var(--on-cta);border-radius:14px;padding:15px 18px;font-weight:600;font-size:16px;letter-spacing:-.01em;transition:transform .12s ease,opacity .12s}
+.primary:active{transform:scale(.985)}
+.ghost{background:var(--surface);border:0;box-shadow:var(--sh-1);border-radius:12px;padding:10px 14px;font-weight:500}
+.ghost.uwide{padding:14px 16px;color:var(--muted)}
+.link{color:var(--ink);font-weight:500;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.ugr{gap:8px}
+.ugr button{border-radius:14px;padding:14px 10px;font-weight:600;letter-spacing:-.01em}
+.ugr .g1{background:var(--bad-soft);color:var(--again)}.ugr .g2{background:var(--hard-soft);color:var(--hard)}.ugr .g3{background:var(--good-soft);color:var(--good)}
+.ugr .ghost{box-shadow:none;background:var(--chip);color:var(--ink)}
+.g1,.g2,.g3,.g4{border:0}
+
+/* štítky předmětů: tónované, ne plné bloky */
+.tag{font:600 11px/1 var(--f-ui);letter-spacing:.01em;padding:5px 8px;border-radius:999px;color:var(--ts,var(--muted));background:color-mix(in srgb,var(--ts,var(--muted)) 13%,transparent)}
+.tag.MAT{--ts:var(--c-MAT)}.tag.OAC{--ts:var(--c-OAC)}.tag.OACC{--ts:var(--c-OACC)}.tag.CBV{--ts:var(--c-CBV)}.tag.CHT{--ts:var(--c-CHT)}.tag.TOX{--ts:var(--c-TOX)}.tag.PCP{--ts:var(--c-PCP)}
+.tag.MAT,.tag.OAC,.tag.OACC,.tag.CBV,.tag.CHT,.tag.TOX,.tag.PCP{background:color-mix(in srgb,var(--ts) 13%,transparent)}
+.kolej{font:500 12px/1 var(--f-ui);padding:5px 9px;border-radius:999px;background:var(--chip);color:var(--muted)}
+.unow.akt .kolej{background:var(--accent-soft);color:var(--accent)}
+.pk{font:500 11px/1 var(--f-ui);padding:4px 8px;border-radius:999px;background:var(--chip);color:var(--muted);margin-right:8px;vertical-align:1px}
+.pk.cesta{background:color-mix(in srgb,var(--easy) 14%,transparent);color:var(--easy)}
+
+/* Učit */
+.usprint{background:var(--surface);border:0;box-shadow:var(--sh-1);border-radius:16px;padding:14px 16px 14px 30px;position:relative}
+.usprint::before{content:"";position:absolute;left:15px;top:20px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.usprint b{font-weight:600;letter-spacing:-.01em}
+.uctx summary{display:inline-flex;align-items:center;gap:6px;background:var(--surface);box-shadow:var(--sh-1);border-radius:999px;padding:8px 14px;font-size:13px}
+.uzad dl{gap:10px 14px}.uzad dt{font-weight:500;font-size:13px}.uzad dd{font-size:15px}
+.uzad h2{font-size:21px}
+.stop{gap:12px}.stop .prog{height:4px;background:var(--chip)}.stop .prog i{background:var(--ink)}
+.stop .ghost{box-shadow:none;background:transparent;padding:6px 4px;color:var(--muted)}
+.card .meta,.ucard .meta{font-size:12.5px;color:var(--muted);font-weight:500}
+.card .q,.ucard .q{font:400 20px/1.5 var(--f-card);letter-spacing:-.005em}
+.ucard .a{border-top:1px solid var(--line)}
+.ucont{font:400 16.5px/1.65 var(--f-card)}
+.ucont h3,.ucont h4{font-family:var(--f-ui)}
+.ucont h3{font-size:15px;color:var(--ink);margin:1.2em 0 .3em;letter-spacing:-.01em}
+.ucont figure img{border-radius:12px}
+.ucont figure img[src$=".svg"]{border:0;box-shadow:var(--sh-1)}
+.ucont .math.display{border-left:0;background:var(--sunk);border-radius:12px;padding:8px 12px}
+.ucont blockquote{border-left:0;background:var(--sunk);border-radius:12px;padding:10px 14px}
+.ucont details{background:var(--sunk);border-radius:12px}
+.ucont td,.ucont th{border-color:var(--line)}
+.uan{border:0;background:var(--accent-soft);box-shadow:none}
+.uan .meta{color:var(--accent)}
+.ufb{border:0;background:var(--sunk);border-radius:14px;padding:10px 14px}
+.ufb summary{color:var(--ink);font-weight:500}
+.uex{border-left:0;background:var(--sunk);border-radius:14px;padding:6px 14px}
+.uex mark{background:color-mix(in srgb,var(--accent) 22%,transparent);color:inherit;font-weight:inherit;border-radius:4px;padding:0 2px}
+.ucard .a.uans{background:var(--good-soft);border-radius:14px;padding:10px 14px}
+.ures.ok,.ures.ne{border:0}
+.ures.ok{box-shadow:var(--sh-2),inset 0 3px 0 var(--good)}.ures.ne{box-shadow:var(--sh-2),inset 0 3px 0 var(--hard)}
+.ubad li::marker{color:var(--muted)}
+
+/* Plán, Mapa */
+.ptime{font:500 13px var(--f-num);color:var(--muted)}
+.pblock.cur{background:var(--accent-soft);border-radius:14px}
+.pblock.cur .ptime{color:var(--accent)}
+.pbar .track,.sbar,.bar,.ladder span{background:var(--chip)}
+.ladder span.on{background:var(--ink)}.ladder span.cur{background:var(--accent)}
+.big b,.kpi .v{font-family:var(--f-num);letter-spacing:-.03em}
+.u-x{background:#8a5cc7}.u-1{background:#c8553f}.u-2{background:#cf9233}.u-3{background:#7ea64a}.u-4{background:#2f7a52}.u-b{background:#b9b4ab}
+
+/* spodní lišta: plovoucí, vycentrovaná, 4 stejné sloupce */
+nav.dock{left:50%;right:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(420px,calc(100% - 32px));padding:0;border:0;border-radius:24px;
+  background:color-mix(in srgb,var(--surface) 78%,transparent);-webkit-backdrop-filter:saturate(1.6) blur(20px);backdrop-filter:saturate(1.6) blur(20px);
+  box-shadow:0 0 0 1px var(--line),0 10px 30px -10px rgba(0,0,0,.25)}
+nav.dock .wrap{max-width:none;padding:6px;display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px}
+nav.dock button{border-radius:18px;padding:8px 0 7px;gap:3px;font-size:11.5px;font-weight:500;color:var(--muted);justify-items:center;text-align:center;transition:background .15s,color .15s}
+nav.dock button>span{display:inline-flex;align-items:center;justify-content:center}
+nav.dock button svg{width:21px;height:21px;stroke-width:1.7}
+nav.dock button[aria-current="page"]{color:var(--ink);background:var(--chip)}
+nav.dock button[aria-current="page"] svg{stroke-width:2}
+nav.dock .badge{background:var(--accent);color:var(--on-accent);position:absolute;transform:translate(22px,-26px)}
+nav.dock button{position:relative}
+.grades{background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-top:0}
+.toast{bottom:calc(96px + env(safe-area-inset-bottom,0px));border-radius:14px;box-shadow:var(--sh-2)}
+
+/* ---- animace v15: krátké, jen tam, kde vedou pozornost (nový krok, odpověď, místo ve výkladu) ---- */
+:root{--ease:cubic-bezier(.2,.75,.2,1)}
+@keyframes uin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes ustep{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes ureveal{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@keyframes uhl{to{background-size:100% 100%}}
+@keyframes upop{0%{transform:scale(.97);opacity:0}100%{transform:none;opacity:1}}
+/* přepnutí sekce: obsah lehce vyjede, prvky postupně */
+[data-tab]:not([hidden])>*,#uMain>*,#pMain>*,#mMain>*{animation:uin .32s var(--ease) both}
+#uMain>*:nth-child(2),#pMain>*:nth-child(2),#mMain>*:nth-child(2){animation-delay:.04s}
+#uMain>*:nth-child(3),#pMain>*:nth-child(3),#mMain>*:nth-child(3){animation-delay:.08s}
+#uMain>*:nth-child(n+4),#pMain>*:nth-child(n+4),#mMain>*:nth-child(n+4){animation-delay:.12s}
+/* učební blok: nový krok přijede zprava; odkrytí odpovědi animuje jen odpověď */
+#uMain.fresh>.ucard{animation:ustep .3s var(--ease) both}
+#uMain:not(.fresh)>*{animation:none}
+#uMain:not(.fresh) .ucard .a,#uMain:not(.fresh) .uex,#uMain:not(.fresh) .ufb,#uMain:not(.fresh) .ucard>.meta{animation:ureveal .28s var(--ease) both}
+#uMain:not(.fresh) .uex{animation-delay:.06s}
+.ures{animation:upop .35s var(--ease) both}
+/* zvýrazňovač: dotáhne se přes slova z odpovědi */
+.uex mark{background:linear-gradient(color-mix(in srgb,var(--accent) 24%,transparent),color-mix(in srgb,var(--accent) 24%,transparent)) no-repeat 0 0/0% 100%;animation:uhl .55s var(--ease) .3s forwards}
+/* drobnosti */
+.stop .prog i{transition:width .45s var(--ease)}
+.primary,.ghost,.ugr button,nav.dock button,.urow,.chip{transition:transform .14s var(--ease),background-color .2s,color .2s,box-shadow .2s}
+.ghost:active,.ugr button:active,.urow:active,.chip:active{transform:scale(.97)}
+nav.dock button:active{transform:scale(.94)}
+nav.dock button svg{transition:transform .25s var(--ease)}
+nav.dock button[aria-current="page"] svg{transform:translateY(-1px)}
+details>summary{transition:color .2s}
+@media (hover:hover){.primary:hover{opacity:.92}.ghost:hover,.urow:hover{background-color:var(--sunk)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.uex mark{background-size:100% 100%}}
+#uMain.fresh>.ures{animation:upop .35s var(--ease) both}

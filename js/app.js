@@ -933,7 +933,7 @@ function chunksOf(key, html) {
   for (const n of [...tp.content.children]) {
     if (/^H[1-6]$/.test(n.tagName)) { h = n.textContent; continue; }
     const parts = /^(UL|OL)$/.test(n.tagName) && n.children.length > 2 ? [...n.children].map(li => { const u = document.createElement(n.tagName); u.appendChild(li.cloneNode(true)); return u; }) : [n];
-    for (const p of parts) list.push({ h, html: p.outerHTML, math: p.matches('.math'), colon: /:\s*$/.test(p.textContent), st: stems(plainT(p.outerHTML) + ' ' + [...p.querySelectorAll('img')].map(i => i.alt).join(' ')) });
+    for (const p of parts) list.push({ h, html: p.outerHTML, fig: p.matches('figure,img') || !!p.querySelector('img'), math: p.matches('.math'), colon: /:\s*$/.test(p.textContent), st: stems(plainT(p.outerHTML) + ' ' + [...p.querySelectorAll('img')].map(i => i.alt).join(' ')) });
   }
   const df = {}; for (const c of list) for (const w of c.st) df[w] = (df[w] || 0) + 1;
   const r = { list, df }; CHUNKS.set(key, r); return r;
@@ -947,9 +947,19 @@ function chunkIdx(C, q) {
   for (const i of [...out]) { const c = C.list[i]; if (c.colon && C.list[i + 1] && C.list[i + 1].math) out.push(i + 1); if (c.math && i > 0) out.push(i - 1); }
   return out;
 }
+// obrázek-kotva k otázce: podle popisku obrázku, jinak obrázek ze stejné podsekce jako odpověď (nejbližší); -1 = nic
+function figIdx(C, q) {
+  const aa = stems(plainT(q.a)), qa = stems(plainT(q.q)); let best = -1, bs = 0; const sc = [];
+  C.list.forEach((c, i) => { if (!c.fig) return; let s = 0; for (const w of aa) if (c.st.has(w)) s += 2 / C.df[w]; for (const w of qa) if (!aa.has(w) && c.st.has(w)) s += 1 / C.df[w]; sc[i] = s; if (s > bs) { bs = s; best = i; } });
+  if (bs >= 1) return best;
+  const t = chunkIdx(C, q)[0]; if (t == null || C.list[t].h == null) return -1;
+  let near = -1; C.list.forEach((c, i) => { if (c.fig && sc[i] > 0 && c.h === C.list[t].h && (near < 0 || Math.abs(i - t) < Math.abs(near - t))) near = i; });   // jen obrázek, který s otázkou něco sdílí
+  return near;
+}
+const figFor = (key, html, q) => { const C = chunksOf(key, html), i = figIdx(C, q); return i < 0 ? '' : C.list[i].html; };
 // HTML výňatku k otázkám (v pořadí výkladu, s nadpisy podsekcí); '' když se nic nenašlo
 function excerpt(key, html, qs) {
-  const C = chunksOf(key, html), pick = new Set(); for (const q of qs) for (const i of chunkIdx(C, q)) pick.add(i);
+  const C = chunksOf(key, html), pick = new Set(); for (const q of qs) { for (const i of chunkIdx(C, q)) pick.add(i); const f = figIdx(C, q); if (f >= 0) pick.add(f); }
   let out = '', h = null;
   for (const i of [...pick].sort((a, b) => a - b)) { const c = C.list[i]; if (c.h && c.h !== h) { out += `<h4>${c.h.replace(/</g, '&lt;')}</h4>`; h = c.h; } out += c.html; }
   return out;
@@ -1051,6 +1061,9 @@ function drawUQ() {
   }
   const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', q.c ? `${q.c} · odpověz sám, pak otoč` : 'Odpověz sám, pak otoč'), H('q', q.q));
   if (UQ.shown) { if (UQ.fb) c.appendChild(el('div', 'meta', 'Měl jsi odpovědět')); c.appendChild(H('a' + (UQ.fb ? ' uans' : ''), q.a)); }
+  if (UQ.shown && !UQ.fb && UQ.o) {                     // kotva: obrázek, na který si odpověď pověsíš (ne před odpovědí, aby ji neprozradil)
+    const fh = figFor(t.id, UQ.o.jadro, q); if (fh) c.append(el('div', 'meta', 'Obrázek, na který si to pověs'), H('ucont ukotva', fh));
+  }
   if (UQ.fb && UQ.o) {                                   // po špatné odpovědi: jen místo ve výkladu, kde to je, se zvýrazněním
     const ex = excerpt(t.id, UQ.o.jadro, [q]);
     if (ex) c.append(el('div', 'meta', 'Kde to je ve výkladu'), markedDiv(ex, stems(plainT(q.a))));

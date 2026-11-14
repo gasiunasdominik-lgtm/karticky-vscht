@@ -473,3 +473,24 @@ details>summary{transition:color .2s}
 .ukotva{margin-top:2px}.ukotva figure{margin:4px 0 0;animation:ureveal .3s var(--ease) both}
 .ukotva figure img,.uex figure img{display:block;margin:0 auto;max-height:46vh;width:auto;max-width:100%}
 .uex figure{margin:10px 0}
+
+/* ---- karta látky (kotva + větve) ---- */
+.kcard{display:grid;gap:12px;margin:8px 0 4px;animation:ureveal .3s var(--ease) both}
+.kmid{display:grid;justify-items:center;text-align:center;gap:4px;background:var(--surface);border-radius:18px;padding:14px 14px 12px;box-shadow:var(--sh-2);position:relative;z-index:1}
+.kpic{position:relative;display:grid;place-items:center;min-height:96px}
+.kpic-st{width:84px;height:84px}
+.kpic-smi{width:240px;max-width:100%;height:170px}
+.kdot{position:absolute;right:-4px;top:4px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 3px var(--surface),0 0 0 4px var(--line)}
+.kname{font:650 18px/1.2 var(--f-ui);letter-spacing:-.02em}
+.kf{font-size:17px}
+.kvz{font-size:13px;color:var(--muted);max-width:30ch}
+.kbr{display:grid;gap:8px;position:relative;padding-left:18px}
+.kbr::before{content:"";position:absolute;left:6px;top:-12px;bottom:14px;width:2px;background:var(--line);border-radius:1px}
+.kb{position:relative;background:var(--sunk);border-radius:14px;padding:9px 12px}
+.kb::before{content:"";position:absolute;left:-12px;top:18px;width:12px;height:2px;background:var(--line)}
+.kbl{font:600 12.5px/1.2 var(--f-ui);margin-bottom:3px;color:var(--muted)}
+.kb-vy .kbl{color:var(--easy)}.kb-po .kbl{color:var(--good)}.kb-ne .kbl{color:var(--again)}
+.kb ul{margin:0;padding-left:16px;font-size:14px;line-height:1.45}
+.kb li{margin:2px 0}
+.kb li.cur{font-weight:600;background:color-mix(in srgb,var(--accent) 16%,transparent);border-radius:6px;padding:1px 4px;margin-left:-4px}
+@media (min-width:640px){.kbr{grid-template-columns:1fr 1fr}.kbr::before{display:none}.kb::before{display:none}.kbr{padding-left:0}}

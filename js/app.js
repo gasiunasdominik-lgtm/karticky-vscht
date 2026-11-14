@@ -210,9 +210,10 @@ function undoBulk(bulk) { const now = Date.now(); for (const id of bulk.ids) don
 function inCamp() { const td = today(); return td >= isoToDay(SEM.camp[0]) && td <= isoToDay(SEM.camp[1]); }
 
 // ---------- sekce
-const TABS = ['ucit', 'mapa', 'plan', 'vic', 'tyden', 'dnes', 'karticky', 'predmety'];
+const TABS = ['ucit', 'mapa', 'plan', 'vic', 'tyden', 'karticky', 'predmety'];   // stará obrazovka Dnes je skrytá (výchozí je Učit)
 let TAB = 'ucit', KSEG = ls.get('k_seg', 'opak');
 function go(tab) {
+  if (tab === 'dnes') tab = 'ucit';
   TAB = tab;
   document.querySelectorAll('section[data-tab]').forEach(s => s.hidden = s.dataset.tab !== tab);
   document.querySelectorAll('nav.dock button').forEach(b => b.toggleAttribute('aria-current', false));
@@ -589,7 +590,7 @@ function finish() {
   const b = el('button', 'show', 'Zpět'); b.type = 'button'; b.onclick = endSession; $('grades').appendChild(b);
   syncNow(false);
 }
-function endSession() { const from = S ? S.from : 'dnes'; S = null; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go(TABS.includes(from) ? from : 'dnes'); }
+function endSession() { const from = S ? S.from : 'ucit'; S = null; $('dock').hidden = false; $('gradesBar').hidden = true; syncNow(false); go(TABS.includes(from) ? from : 'ucit'); }
 
 // ---------- UČIT: jeden další krok · diagnostika · mapa znalostí · vrstvy V0–V4 (uceni.json + obsah/<ID>.json z build_uceni.py)
 // diag[tid] = { st, lv, h:[[den, id, g]], nx, up, ts } · st: 'B' nebráno · 'X' nerozumím · 1 neumím · 2 zhruba · 3 skoro · 4 umím
@@ -957,6 +958,57 @@ function figIdx(C, q) {
   return near;
 }
 const figFor = (key, html, q) => { const C = chunksOf(key, html), i = figIdx(C, q); return i < 0 ? '' : C.list[i].html; };
+// ----- karta látky: obrázek látky (struktura ze SMILES / skupenství v barvě) + větve z odpovědí tématu (kotvy/<ID>.json)
+const KOT = {};
+let KOTI = null;   // seznam témat, která mají karty (kotvy/_index.json) – jinde se nic nestahuje
+async function loadKot(tid) { if (!KOTI) { try { KOTI = new Set(await (await fetch('kotvy/_index.json')).json()); } catch { KOTI = new Set(); } } if (!KOTI.has(tid)) return (KOT[tid] = []); if (!(tid in KOT)) { try { const r = await fetch(`kotvy/${tid}.json`); KOT[tid] = r.ok ? await r.json() : []; } catch { KOT[tid] = []; } } return KOT[tid]; }
+const rawTok = s => plainT(s).normalize('NFKD').replace(/[̀-ͯ]/g, '').split(/[^A-Za-z0-9]+/).filter(Boolean);
+// shoda klíčového slova: vzorce (velká písmena/číslice) přesně a s rozlišením velikosti, slova podle kmene (5 znaků)
+function kwHit(kw, toks, low) {
+  const parts = rawTok(kw).filter(x => !/^\d+$/.test(x)); if (!parts.length) return false;
+  return parts.every(x => /[A-Z0-9]/.test(x) || x.length < 4 ? toks.has(x) : low.has(normT(x).slice(0, 5)));
+}
+function kotTok(text) { const t = rawTok(text); return [new Set(t), new Set(t.map(x => normT(x).slice(0, 5)))]; }
+// nejlepší karta k otázce (zmínka v otázce váží víc než v odpovědi)
+function kotFor(cards, q) {
+  if (!cards || !cards.length) return null;
+  const [qt, ql] = kotTok(q.q), [at, al] = kotTok(q.a); let best = null, bs = 0;
+  for (const k of cards) { let s = 0; for (const w of k.kw) { if (kwHit(w, qt, ql)) s += 2; else if (kwHit(w, at, al)) s += 1; } if (s > bs) { bs = s; best = k; } }
+  return best;
+}
+const KBR = [['vl', 'Vlastnosti'], ['vy', 'Výroba a reakce'], ['po', 'Použití'], ['ne', 'Účinek a nebezpečí']];
+const kbrOf = q => { const x = normT(plainT(q.q)); return /nebezp|toxi|jed|otrav|exploz|antidot|prizna|ucin|karcino|poskoz|smrt|zasah|mechan|inhib|terat|mutag|navyk|zavisl/.test(x) ? 'ne' : /pouzi|vyuzi|k cemu|slouzi|spotreb|uplatn|surovin/.test(x) ? 'po' : /vyrab|vyrob|vznik|ziska|synte|rovnic|reakc|katalyz|pripr|odstran|rozklad|proces|konverz|oxid/.test(x) ? 'vy' : 'vl'; };
+// SmilesDrawer se načte až při první struktuře
+let SDP = null;
+const loadSD = () => SDP || (SDP = new Promise((ok, ko) => { const sc = document.createElement('script'); sc.src = 'vendor/smiles-drawer/smiles-drawer.min.js'; sc.onload = ok; sc.onerror = ko; document.head.appendChild(sc); }));
+const dark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+function statePic(st, c) {                   // ikona skupenství v barvě látky
+  const d = `color-mix(in srgb, ${c} 70%, #000)`;
+  const g = st === 'g' ? `<circle cx="22" cy="34" r="11" fill="${c}" fill-opacity=".55" stroke="${d}"/><circle cx="36" cy="26" r="13" fill="${c}" fill-opacity=".7" stroke="${d}"/><circle cx="45" cy="38" r="9" fill="${c}" fill-opacity=".5" stroke="${d}"/>`
+    : st === 'l' ? `<path d="M32 8 C32 8 14 30 14 40 a18 18 0 0 0 36 0 C50 30 32 8 32 8Z" fill="${c}" stroke="${d}" stroke-width="1.5"/><path d="M24 40 a8 8 0 0 0 6 8" stroke="#fff" stroke-opacity=".6" stroke-width="2.5" fill="none" stroke-linecap="round"/>`
+      : `<path d="M32 6 L54 19 L54 45 L32 58 L10 45 L10 19 Z" fill="${c}" stroke="${d}" stroke-width="1.5"/><path d="M32 6 L32 32 L54 19 M32 32 L10 19 M32 32 L32 58" stroke="${d}" stroke-opacity=".45" fill="none"/><path d="M10 19 L32 32 L32 58 L10 45 Z" fill="#000" fill-opacity=".12"/>`;
+  return `<svg viewBox="0 0 64 64" class="kpic-st" aria-hidden="true">${g}</svg>`;
+}
+// karta: střed (obrázek, název, vzorec, vzhled) + větve s fakty z odpovědí; fakt aktuální otázky zvýrazněn
+function kotCard(k, t, curQ) {
+  const box = el('div', 'kcard'), mid = el('div', 'kmid'), pic = el('div', 'kpic');
+  if (k.smi) { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'kpic-smi'); pic.appendChild(svg); pic.insertAdjacentHTML('beforeend', `<span class="kdot" style="background:${k.c}"></span>`);
+    loadSD().then(() => SmilesDrawer.parse(k.smi, tree => { new SmilesDrawer.SvgDrawer({ width: 240, height: 170, bondThickness: 1.1, padding: 12 }).draw(tree, svg, dark() ? 'dark' : 'light'); }, () => { pic.innerHTML = statePic(k.st, k.c); })).catch(() => { pic.innerHTML = statePic(k.st, k.c); }); }
+  else pic.innerHTML = statePic(k.st, k.c);
+  const nm = el('div', 'kname', k.n); mid.append(pic, nm);
+  if (k.f) { const f = el('div', 'kf'); f.dataset.tex = `\\ce{${k.f}}`; f.className = 'kf math'; mid.appendChild(f); }
+  if (k.vz) mid.appendChild(el('div', 'kvz', k.vz));
+  box.appendChild(mid);
+  const seen = new Set(), by = {};
+  const qs = [...(curQ ? [curQ] : []), ...t.qs.filter(q => q !== curQ)].filter(q => kotFor([k], q) && kotFor(KOT[t.id], q) === k);
+  for (const q of qs) { const a = plainT(q.a).replace(/\s+/g, ' ').trim(), key = normT(a).slice(0, 40); if (seen.has(key)) continue; seen.add(key); const b = kbrOf(q); (by[b] = by[b] || []).push({ a: a.length > 130 ? a.slice(0, 127) + '…' : a, cur: q === curQ }); }
+  const br = el('div', 'kbr'); let n = 0;
+  for (const [id, lab] of KBR) { const L = (by[id] || []).slice(0, 3); if (!L.length) continue; n++; const b = el('div', 'kb kb-' + id); b.appendChild(el('div', 'kbl', lab)); const ul = el('ul'); for (const x of L) ul.appendChild(el('li', x.cur ? 'cur' : null, x.a)); b.appendChild(ul); br.appendChild(b); }
+  if (n) box.appendChild(br);
+  mathify(box); return box;
+}
+// karty k několika otázkám (bez opakování)
+function kotCards(t, qs, curQ) { const out = [], used = new Set(); for (const q of qs) { const k = kotFor(KOT[t.id], q); if (k && !used.has(k)) { used.add(k); out.push(kotCard(k, t, curQ || q)); } } return out; }
 // HTML výňatku k otázkám (v pořadí výkladu, s nadpisy podsekcí); '' když se nic nenašlo
 function excerpt(key, html, qs) {
   const C = chunksOf(key, html), pick = new Set(); for (const q of qs) { for (const i of chunkIdx(C, q)) pick.add(i); const f = figIdx(C, q); if (f >= 0) pick.add(f); }
@@ -977,6 +1029,7 @@ function markedDiv(html, terms) {
   mathify(d); return d;
 }
 async function startLearn(t, ctx, review) {
+  await loadKot(t.id);
   const o = await loadObs(t.id), lv = lvOf(t), f = review ? 'opakovani' : fazeOf(t), z = zadani(t, ctx.kde, f, ctx.min), short = ctx.min <= 10;
   const recent = new Set(((diag[t.id] || {}).h || []).filter(x => x[2] === 3 && x[0] >= today() - 1).map(x => x[1]));
   const base = t.qs.filter(q => !q.c && !recent.has(q.id)), cards = t.qs.filter(q => q.c && !recent.has(q.id));
@@ -988,8 +1041,8 @@ async function startLearn(t, ctx, review) {
   if (f === 'uceni') {
     if (o.an) steps.push({ k: 'c', title: 'Představ si to takhle', html: o.an, an: true });
     const ex = z.kratce ? excerpt(t.id, o.jadro, base.slice(0, 3)) : '';
-    if (ex) steps.push({ k: 'c', title: 'Krátce – přesně to, na co se pak zeptám', html: ex, full: o.jadro });   // krátký blok: jen úseky k otázkám, celý výklad na rozbalení
-    else { C('Výklad – přečti, schémata si prohlédni', 'jadro'); if (!short && !z.kratce) C('Takhle to vypadá v testu – projdi postup', 'rp'); }
+    if (ex) steps.push({ k: 'c', title: 'Krátce – přesně to, na co se pak zeptám', html: ex, full: o.jadro, kq: base.slice(0, 3) });   // krátký blok: jen úseky k otázkám, celý výklad na rozbalení
+    else { C('Výklad – přečti, schémata si prohlédni', 'jadro'); if (steps.length) steps[steps.length - 1].kq = base.slice(0, z.papir ? 2 : 3); if (!short && !z.kratce) C('Takhle to vypadá v testu – projdi postup', 'rp'); }
     if (z.papir) { X(1, 2); Q(2, base); } else Q(3, base);            // otázky jen z toho, co právě bylo ve výkladu (první otázky listu = jádro)
   } else if (f === 'cviceni') {
     C('Na co si dát pozor', 'chyby');
@@ -1044,6 +1097,7 @@ function drawUQ() {
   }
   if (s.k === 'c') {
     const c = el('div', 'card ucard ucontent' + (s.an ? ' uan' : '')); c.append(el('div', 'meta', s.title), H('ucont', s.html));
+    if (s.kq) { const kc = kotCards(t, s.kq); if (kc.length) c.append(el('div', 'meta', kc.length > 1 ? 'Látky, na které si to pověsíš' : 'Látka, na kterou si to pověsíš'), ...kc); }
     if (s.full) { const d = el('details', 'ufb'), sm = el('summary'); sm.textContent = 'Celý výklad (když máš čas)'; d.append(sm); d.ontoggle = () => { if (d.open && d.children.length < 2) d.append(H('ucont', s.full)); }; c.appendChild(d); }
     box.appendChild(c);
     box.appendChild(btns([['Přečteno, dál', 'primary', next]])); return;
@@ -1062,10 +1116,12 @@ function drawUQ() {
   const q = s.q, c = el('div', 'card ucard'); c.append(el('div', 'meta', q.c ? `${q.c} · odpověz sám, pak otoč` : 'Odpověz sám, pak otoč'), H('q', q.q));
   if (UQ.shown) { if (UQ.fb) c.appendChild(el('div', 'meta', 'Měl jsi odpovědět')); c.appendChild(H('a' + (UQ.fb ? ' uans' : ''), q.a)); }
   if (UQ.shown && !UQ.fb && UQ.o) {                     // kotva: obrázek, na který si odpověď pověsíš (ne před odpovědí, aby ji neprozradil)
-    const fh = figFor(t.id, UQ.o.jadro, q); if (fh) c.append(el('div', 'meta', 'Obrázek, na který si to pověs'), H('ucont ukotva', fh));
+    const k = kotFor(KOT[t.id], q); if (k) c.append(el('div', 'meta', 'Látka, na kterou si to pověs'), kotCard(k, t, q));
+    else { const fh = figFor(t.id, UQ.o.jadro, q); if (fh) c.append(el('div', 'meta', 'Obrázek, na který si to pověs'), H('ucont ukotva', fh)); }
   }
   if (UQ.fb && UQ.o) {                                   // po špatné odpovědi: jen místo ve výkladu, kde to je, se zvýrazněním
-    const ex = excerpt(t.id, UQ.o.jadro, [q]);
+    const ex = excerpt(t.id, UQ.o.jadro, [q]), kk = kotFor(KOT[t.id], q);
+    if (kk) c.append(el('div', 'meta', 'Látka, na kterou si to pověs'), kotCard(kk, t, q));
     if (ex) c.append(el('div', 'meta', 'Kde to je ve výkladu'), markedDiv(ex, stems(plainT(q.a))));
     const d = el('details', 'ufb'); d.open = !ex && UQ.f === 'uceni'; const sm = el('summary'); sm.textContent = ex ? 'Celý výklad' : 'Proč – výklad k tématu'; d.append(sm, H('ucont', UQ.o.jadro || UQ.o.v0 || ''));
     if (UQ.o.chyby) { const d2 = el('details', 'ufb'); const s2 = el('summary'); s2.textContent = 'Časté chyby'; d2.append(s2, H('ucont', UQ.o.chyby)); c.append(d, d2); } else c.appendChild(d);

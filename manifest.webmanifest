@@ -3,7 +3,7 @@
   "short_name": "VŠCHT",
   "description": "Plán semestru a opakovací kartičky – VŠCHT ZS 2026/27",
   "lang": "cs",
-  "start_url": "./#dnes",
+  "start_url": "./#ucit",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

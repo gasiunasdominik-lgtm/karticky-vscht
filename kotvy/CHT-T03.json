@@ -79,5 +79,18 @@
 "st": "s",
 "c": "#262626",
 "vz": "černý magnetický oxid → α-Fe"
+},
+{
+"n": "Hydrazin",
+"f": "N2H4",
+"kw": [
+"hydrazin",
+"N2H4",
+"Raschig"
+],
+"smi": "NN",
+"st": "l",
+"c": "#f2f6fa",
+"vz": "bezbarvá kapalina – Raschigův proces"
 }
 ]

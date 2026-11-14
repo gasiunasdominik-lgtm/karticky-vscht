@@ -593,6 +593,8 @@ function endSession() { const from = S ? S.from : 'dnes'; S = null; $('dock').hi
 
 // ---------- UČIT: jeden další krok · diagnostika · mapa znalostí · vrstvy V0–V4 (uceni.json + obsah/<ID>.json z build_uceni.py)
 // diag[tid] = { st, lv, h:[[den, id, g]], nx, up, ts } · st: 'B' nebráno · 'X' nerozumím · 1 neumím · 2 zhruba · 3 skoro · 4 umím
+// témata, která Dominik nedělá (v PCP místo Excelu čistě MATLAB) – vyřazená z Učit, Plánu, Mapy i dluhu
+const NEDELAM = /^Excel\b/i;
 let UC = null, UT = [], UBY = {}, diag = {}, UQ = null, UOPEN = null, OBS = {};
 let UCTX = { min: 25, kde: 'doma', ts: 0, ...ls.get('k_uctx', {}) };
 const STN = { 0: 'neověřeno', B: 'nebráno', X: 'nerozumím', 1: 'neumím', 2: 'zhruba', 3: 'skoro', 4: 'umím' };
@@ -612,7 +614,29 @@ function mathify(root) {
     e.dataset.done = '1';
   });
 }
-const H = (cls, htmlStr) => { const d = el('div', cls); d.innerHTML = htmlStr; mathify(d); return d; };
+// tabulky ve výkladu: textové se na úzkém displeji přeskládají do karet po řádcích, krátké zůstanou tabulkou se scrollem (žádné úzké sloupce)
+function fixTables(root) {
+  const W = Math.min(window.innerWidth || 400, 760) - 72;
+  for (const t of root.querySelectorAll('table')) {
+    if (t.closest('.tscroll') || t.classList.contains('tstack')) continue;
+    const rows = [...t.rows]; if (!rows.length) continue;
+    const len = c => plainT(c.innerHTML).replace(/\s+/g, ' ').trim().length;
+    const hr = rows[0].querySelector('th') || t.tHead ? rows[0] : null, body = rows.filter(r => r !== hr);
+    const nc = Math.max(...rows.map(r => r.cells.length)), cells = body.flatMap(r => [...r.cells]);
+    const avg = cells.reduce((a, c) => a + len(c), 0) / Math.max(1, cells.length);
+    const colW = [...Array(nc)].map((_, i) => Math.max(...rows.map(r => r.cells[i] ? Math.min(len(r.cells[i]), 32) : 0)));
+    const est = colW.reduce((a, w) => a + w * 7.6 + 22, 0);             // přirozená šířka tabulky v px (odhad)
+    if (est > W && avg > 12) {                                          // nevešla by se a je to text → karty
+      t.classList.add('tstack'); if (hr) hr.classList.add('thead');
+      const lab = hr ? [...hr.cells].map(c => plainT(c.innerHTML).replace(/\s+/g, ' ').trim()) : [];
+      for (const r of body) [...r.cells].forEach((c, i) => { if (lab[i] && i > 0) c.dataset.l = lab[i]; if (!len(c) && !c.querySelector('img,[data-tex]')) c.classList.add('emp'); });
+    } else {
+      const w = el('div', 'tscroll'); t.replaceWith(w); w.appendChild(t);
+      for (const r of rows) for (const c of r.cells) { const n = len(c); if (n > 28) c.classList.add('tw'); else if (n <= 18) c.classList.add('tn'); }
+    }
+  }
+}
+const H = (cls, htmlStr) => { const d = el('div', cls); d.innerHTML = htmlStr; fixTables(d); mathify(d); return d; };
 function topicTest(t) {
   let best = null; const td = today();
   for (const x of UC.tests) {
@@ -932,7 +956,7 @@ function excerpt(key, html, qs) {
 }
 // výňatek se zvýrazněnými slovy z odpovědi
 function markedDiv(html, terms) {
-  const d = el('div', 'ucont uex'); d.innerHTML = html;
+  const d = el('div', 'ucont uex'); d.innerHTML = html; fixTables(d);
   const tw = document.createTreeWalker(d, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest('[data-tex],figcaption') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
   const nodes = []; while (tw.nextNode()) nodes.push(tw.currentNode);
   for (const n of nodes) {
@@ -1181,7 +1205,7 @@ if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
   navigator.serviceWorker.register('./sw.js').then(r => { r.update(); document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update(); }); });
 }
 Promise.all([fetch('cards.json').then(r => r.json()), fetch('semestr.json').then(r => r.json()), fetch('uceni.json').then(r => r.json()).catch(() => null)]).then(([d, sm, uc]) => {
-  if (uc) { UC = uc; UT = uc.topics; UBY = Object.fromEntries(UT.map(t => [t.id, t])); }
+  if (uc) { UC = uc; UT = uc.topics.filter(t => !NEDELAM.test(t.n)); UBY = Object.fromEntries(UT.map(t => [t.id, t])); }
   DATA = d; SEM = sm; CARDS = d.cards; BYID = Object.fromEntries(CARDS.map(c => [c.id, c])); W1 = isoToDay(d.w1);
   const tm = new Map();
   for (const c of CARDS) { if (!tm.has(c.t)) tm.set(c.t, { t: c.t, tn: c.tn, s: c.s, w: c.w }); else tm.get(c.t).w = Math.min(tm.get(c.t).w, c.w); }

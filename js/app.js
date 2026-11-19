@@ -328,6 +328,28 @@ function phase(dd) {
   if (dd <= 21) return { k: 'budovani', n: 'budování – jádro a příklady', tgt: 2 };
   return { k: 'zaklad', n: 'dost času – nejdřív všechno do šířky, pak do hloubky', tgt: 1 };
 }
+// kolik minut učení zbývá podle rozvrhu (od teď do dne před testem); praktické předměty se na cestě nepočítají
+function availMin(untilDay, prakt) {
+  const now = new Date(), m = now.getHours() * 60 + now.getMinutes(); let tot = 0;
+  for (let d = today(); d < untilDay; d++) {
+    const dow = ((new Date(d * DAY).getUTCDay() + 6) % 7) + 1;
+    for (const b of learnBlocks(dow)) {
+      if (prakt && b.t === 'cesta') continue;
+      const a = mins(b.a), e = mins(b.b), from = d === today() ? Math.max(a, m) : a;
+      if (e > from) tot += Math.min(e - from, b.t === 'cesta' ? 30 : 999);
+    }
+  }
+  return tot;
+}
+// stav témat jednoho testu: co umím, co procvičuji, čemu jsem se vůbec nevěnoval
+function readiness(s, day) {
+  return UT.filter(t => t.s === s && taught(t) && (topicTest(t) || {}).day === day).map(t => {
+    const h = ((diag[t.id] || {}).h) || [], last = h.length ? Math.max(...h.map(x => x[0])) : null, lv = lvOf(t);
+    return { t, lv, last, k: !h.length ? 'nic' : lv >= 3 ? 'umis' : lv >= 1 ? 'cvic' : 'uceni' };
+  });
+}
+const RDN = { nic: 'ještě vůbec', uceni: 'učení – výklad', cvic: 'procvičuješ', umis: 'umíš' };
+const ago = d => { const n = today() - d; return n <= 0 ? 'dnes' : n === 1 ? 'včera' : `před ${n} dny`; };
 // kolik minut je potřeba / k dispozici do testu předmětu
 function budget(s) {
   const ts = UT.filter(t => t.s === s && taught(t)); if (!ts.length) return null;
@@ -335,7 +357,7 @@ function budget(s) {
   const dd = nt.day - today(), ph = phase(dd);
   let need = 0; for (const t of ts) { const tt = topicTest(t); if (!tt || tt.day !== nt.day) continue; for (let l = lvOf(t); l < ph.tgt; l++) need += STEPMIN[l]; }
   const active = new Set(UT.filter(t => taught(t) && topicTest(t) && topicTest(t).day - today() <= 21).map(t => t.s)).size || 1;
-  const have = Math.round(Math.max(0, dd) * 6 / 7 * 100 / Math.max(1, active));
+  const have = Math.round(availMin(nt.day, PRAKT.has(s)) * (dd <= 7 ? 0.75 : 1 / Math.max(1, active)));   // čas z rozvrhu; test do 7 dní dostane 3/4
   return { nt, dd, ph, need, have, tight: need > have };
 }
 function target(t) {
@@ -356,6 +378,7 @@ function prio(t) {
   if (stOf(t) === 'X') p += 0.3 * urg;
   if (reviewDue(t)) p += (forgotten(t) ? 0.6 : 0.3) * urg;
   if (stOf(t) === 0) p += 0.5 * urg;
+  if (ts && ts.day - today() <= 7) p *= 3;   // test do týdne má přednost před vším ostatním
   return p;
 }
 // ----- varianta D „Dvě koleje“: aktuální kolej (látka ze dne ještě ten den) + dluhová kolej (dohánění), sprint 10 dní před testem
@@ -426,6 +449,13 @@ function plan(ctx, used = new Set(), max = 3) {
     if (ctx.lehky && PRAKT.has(t.s) && fazeOf(t) === 'uceni') return;           // lehký blok: žádná nová praktická látka na papír
     const s = stepFor(t, ctx.kde, left, akt); if (s.m > left + 3 || (s.f === 'uceni' && s.m < 8)) return; out.push({ t, s, ts: topicTest(t), akt }); used.add(t.id); left -= s.m;   // výklad pod 8 min nemá smysl
   };
+  // test do 7 dní: doma a ve škole nejdřív jeho témata (do 3 dní celý blok, jinak 3/4), v pořadí látky
+  const urg = sprints().filter(x => x.b.dd <= 7 && x.b.need > 0);
+  if (urg.length && ctx.kde !== 'cesta') {
+    const S = new Set(urg.map(x => x.s)), share = urg[0].b.dd <= 3 ? 1 : 0.75;
+    const cs = UT.filter(t => S.has(t.s) && prio(t) > 0 && (topicTest(t) || { day: 1e9 }).day - today() <= 7).sort((a, b) => a.id.localeCompare(b.id, 'cs', { numeric: true }));
+    for (const t of cs) { if (ctx.min - left >= ctx.min * share) break; add(t, false); }
+  }
   for (const t of aktTopics()) if ((ctx.kde === 'cesta') !== PRAKT.has(t.s)) add(t, true);   // dnešní praktické doma/v pauze, dnešní teorie na cestě
   const cand = UT.filter(t => prio(t) > 0 && !used.has(t.id)).sort((a, b) => prio(b) * placeW(b, ctx.kde) - prio(a) * placeW(a, ctx.kde) || lvOf(a) - lvOf(b));
   for (const t of cand) add(t, false);
@@ -457,7 +487,8 @@ function renderUcit() {
   const sp = sprints()[0];
   if (sp) {
     const s = el('div', 'usprint');
-    s.append(el('b', null, `Sprint: ${SUBJN[sp.s]} – ${sp.b.nt.n} ${inDays(sp.b.dd)}`), el('span', null, sp.b.tight ? `potřeba ~${fmtMin(sp.b.need)}, máš ~${fmtMin(sp.b.have)} → jedeme do šířky` : `potřeba ~${fmtMin(sp.b.need)} z ~${fmtMin(sp.b.have)}, stíháš`));
+    const rd = readiness(sp.s, sp.b.nt.day), cnt = k => rd.filter(x => x.k === k).length;
+    s.append(el('b', null, `Sprint: ${SUBJN[sp.s]} – ${sp.b.nt.n} ${inDays(sp.b.dd)}`), el('span', null, `${rd.length} témat: ${cnt('umis')} umíš · ${cnt('cvic')} procvičuješ · ${cnt('uceni')} ve výkladu · ${cnt('nic')} ještě vůbec`), el('span', null, sp.b.tight ? `potřeba ~${fmtMin(sp.b.need)}, máš ~${fmtMin(sp.b.have)} → jedeme do šířky` : `potřeba ~${fmtMin(sp.b.need)} z ~${fmtMin(sp.b.have)}, stíháš`));
     box.appendChild(s);
   } else {
     const near = SUBJS.map(s => ({ s, b: budget(s) })).filter(x => x.b).sort((a, b) => a.b.dd - b.b.dd)[0];
@@ -527,7 +558,13 @@ function renderPlan() {
     r.append(tag(s), el('span', 't', `${b.nt.n} ${inDays(b.dd)}`), el('span', 'note', b.dd <= 10 ? `sprint · potřeba ${fmtMin(b.need)} / máš ${fmtMin(b.have)}` : `za ${Math.max(0, b.dd - 10)} dní začne sprint`));
     ul.appendChild(r);
   }
-  pt.append(ul, el('div', 'note', '10 dní před testem dostane předmět přednost v dohánění (sprint).'));
+  pt.append(ul, el('div', 'note', '10 dní před testem dostane předmět přednost v dohánění (sprint), 7 dní před testem jde doma a ve škole jako první.'));
+  for (const sp of sprints()) {                                   // připravenost na každý test ve sprintu
+    const rd = readiness(sp.s, sp.b.nt.day); if (!rd.length) continue;
+    const pr = panel(`Připravenost: ${SUBJN[sp.s]} – ${sp.b.nt.n} ${inDays(sp.b.dd)}`), L = el('div', 'list');
+    for (const x of rd) { const r = el('button', 'urow'); r.type = 'button'; r.append(el('i', 'dot ' + STC[stOf(x.t)]), el('span', 't', x.t.n), el('span', 'note rd-' + x.k, `${RDN[x.k]}${x.last != null ? ' · ' + ago(x.last) : ''}`)); r.onclick = () => { go('ucit'); go2({ t: x.t, s: stepFor(x.t, 'doma', 50, false) }, { ...UCTX, kde: 'doma', min: 50 }); }; L.appendChild(r); }
+    pr.append(L, el('div', 'note', `Cíl do testu: všechna témata aspoň „procvičuješ“, ideálně „umíš“. Klepnutím začneš blok.`)); box.appendChild(pr);
+  }
   box.appendChild(pt);
   // dluh
   const h = ls.get('k_debt', {}), days = Object.keys(h).map(Number).sort((a, b) => a - b), vals = days.map(d => h[d]);
